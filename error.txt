@@ -1,0 +1,17 @@
+  Local URL: http://localhost:8501
+  Network URL: http://172.30.225.205:8501
+
+2025-07-29 21:37:05.220 Script compilation error
+Traceback (most recent call last):
+  File "/mnt/c/Users/blake/Documents/Thesis_Clean/2025 Thesis/experiments/demo5/venv/lib/python3.10/site-packages/streamlit/runtime/scriptrunner/script_runner.py", line 571, in _run_script
+    code = self._script_cache.get_bytecode(script_path)
+  File "/mnt/c/Users/blake/Documents/Thesis_Clean/2025 Thesis/experiments/demo5/venv/lib/python3.10/site-packages/streamlit/runtime/scriptrunner/script_cache.py", line 72, in get_bytecode
+    filebody = magic.add_magic(filebody, script_path)
+  File "/mnt/c/Users/blake/Documents/Thesis_Clean/2025 Thesis/experiments/demo5/venv/lib/python3.10/site-packages/streamlit/runtime/scriptrunner/magic.py", line 45, in add_magic
+    tree = ast.parse(code, script_path, "exec")
+  File "/usr/lib/python3.10/ast.py", line 50, in parse
+    return compile(source, filename, mode, flags,
+  File "/mnt/c/Users/blake/Documents/Thesis_Clean/2025 Thesis/experiments/demo5/comparison_app.py", line 701
+    if st.button("❌ Close Details", key="close_details"):
+IndentationError: unexpected indent
+2025-07-29 21:37:05.253 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.

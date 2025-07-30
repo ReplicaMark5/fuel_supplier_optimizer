@@ -1,0 +1,1 @@
+Read the error.txt file in the demo5 folder and analyze what the potential issues could be relative to what my project is. Then make a plan to solve the problem but do not code yet. Allow the user to approve the plan 
