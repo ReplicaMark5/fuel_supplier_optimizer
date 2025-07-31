@@ -1,0 +1,34 @@
+
+
+  Equipment Decision Controls
+
+  - Equipment Provider Toggle: Radio buttons per depot-supplier pair (Supplier Equipment vs Own Equipment)
+  - Equipment Cost Multiplier: Slider to adjust equipment rental/purchase cost impact on total cost
+  - Equipment Availability Filter: Checkboxes to disable suppliers who don't provide required equipment
+
+  Contract Flexibility Controls
+
+  - Max Suppliers Constraint: Numeric input for total number of suppliers that can be awarded contracts (default: unlimited)
+  - Payment Term Filter: Dropdown to restrict to specific payment terms (30D, 3D, etc.)
+  - Service Type Restriction: Toggle between "COC Only", "DEL Only", or "Mixed" per contract
+  - Min/Max Volume per Supplier: Range sliders to set supplier capacity limits
+
+  Volume Tier Adjustments
+
+  - Volume Tier Thresholds: Editable table where users can adjust tier breakpoints
+  - Rebate Value Override: Editable grid allowing manual adjustment of rebate values per tier
+  - Tier Assignment: Dropdown per depot to manually assign volume tiers
+
+  Reciprocal Business Integration
+
+  - Reciprocal Revenue Input: Text field per supplier for estimated annual reciprocal business value
+  - Profit Margin Slider: Percentage input for profit margin on reciprocal business
+  - Net Cost Toggle: Checkbox to enable/disable reciprocal business in cost calculation:
+  Net_Cost = Total_Cost - (Reciprocal_Revenue × Profit_Margin)
+
+  Dynamic Constraint Controls
+
+  - Depot-Supplier Assignments: Interactive matrix allowing users to manually enable/disable specific depot-supplier combinations
+  - Service Type Override: Dropdowns per depot to force specific operation types
+  - Geographic Constraints: Distance/zone-based filters with adjustable limits
+

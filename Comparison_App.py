@@ -147,15 +147,15 @@ with st.sidebar:
     
     optimization_method = st.selectbox(
         "Select Method",
-        ["NSGA-II", "ε-Constraint", "Both", "Hybrid"],
-        help="Choose which optimization method(s) to run"
+        ["NSGA-II", "ε-Constraint", "Hybrid"],
+        help="Choose which optimization method to run"
     )
 
     
     st.header("⚙️ Algorithm Parameters")
     
     # NSGA-II Parameters
-    if optimization_method in ["NSGA-II", "Both", "Hybrid"]:
+    if optimization_method in ["NSGA-II", "Hybrid"]:
         st.subheader("NSGA-II Parameters")
         # Runtime controls 
         st.markdown("Runtime controls")
@@ -177,7 +177,7 @@ with st.sidebar:
         st.session_state.optimizer_instance = nsga_optimizer  # Use NSGA as primary for display
 
     # ε-Constraint Parameters
-    if optimization_method in ["ε-Constraint", "Both", "Hybrid"]:
+    if optimization_method in ["ε-Constraint", "Hybrid"]:
         st.subheader("ε-Constraint Parameters")
         n_points = st.slider("Number of Epsilon Points", 5, 400, 21, help="Number of points to test in the Pareto front")
         constraint_type = st.selectbox("Constraint Type", ["cost", "score"], help="Which objective to constrain")
@@ -207,11 +207,11 @@ with st.sidebar:
                     random.seed(random_seed)
                     np.random.seed(random_seed)
                     
-                    if optimization_method in ["NSGA-II", "Both"]:
+                    if optimization_method == "NSGA-II":
                         nsga_optimizer = FixedFlexibleSupplyChainOptimizer(file_path, sheet_names)
                         st.session_state.nsga_optimizer = nsga_optimizer
                         st.session_state.optimizer_instance = nsga_optimizer
-                    if optimization_method in ["ε-Constraint", "Both"]:
+                    elif optimization_method == "ε-Constraint":
                         econst_optimizer = SelectiveNAFlexibleEConstraintOptimizer(file_path, sheet_names)
                         st.session_state.econst_optimizer = econst_optimizer
                         st.session_state.optimizer_instance = econst_optimizer
@@ -229,7 +229,7 @@ if st.session_state.get('data_loaded', False):
     if st.button("🚀 Run Optimization", type="primary"):
         try:
             with st.spinner("Running optimization..."):
-                if optimization_method in ["NSGA-II", "Both"]:
+                if optimization_method == "NSGA-II":
                     if 'nsga_optimizer' in st.session_state:
                         nsga_optimizer = st.session_state.nsga_optimizer
                         final_population = nsga_optimizer.optimize(
@@ -242,7 +242,7 @@ if st.session_state.get('data_loaded', False):
                         )
                         df_nsga = nsga_optimizer.extract_pareto_front(final_population)
                         df_nsga['method'] = 'NSGA-II'
-                        st.session_state.df_nsga = df_nsga
+                        st.session_state.results_nsga = df_nsga
 
                         
                         # Compute evaluation metrics for NSGA-II
@@ -277,11 +277,10 @@ if st.session_state.get('data_loaded', False):
                         st.session_state.spread = spread
                         st.session_state.num_nd = num_nd
 
-
                     else:
                         st.error("❌ NSGA-II optimizer not initialized. Please click 'Initialize & Analyze Data' first.")
                 
-                if optimization_method in ["ε-Constraint", "Both"]:
+                elif optimization_method == "ε-Constraint":
                     if 'econst_optimizer' in st.session_state:
                         econst_optimizer = st.session_state.econst_optimizer
                         df_econst = econst_optimizer.optimize_epsilon_constraint(
@@ -290,12 +289,11 @@ if st.session_state.get('data_loaded', False):
                         )
                         df_econst = df_econst[df_econst['status'] == 'Optimal']
                         df_econst['method'] = 'ε-Constraint'
-                        #df_econst = df_econst.rename(columns={'allocations': 'allocation'})
-                        st.session_state.df_econst = df_econst
+                        st.session_state.results_econst = df_econst
                     else:
                         st.error("❌ ε-Constraint optimizer not initialized. Please click 'Initialize & Analyze Data' first.")
                 
-                if optimization_method == "Hybrid":
+                elif optimization_method == "Hybrid":
                     if 'nsga_optimizer' in st.session_state and 'econst_optimizer' in st.session_state:
                         with st.spinner("Running Hybrid Optimization..."):
                             # Get feasible allocations from ε-constraint
@@ -317,7 +315,7 @@ if st.session_state.get('data_loaded', False):
                                 seed_individuals=seed_individuals
                             )
                             df_hybrid['method'] = 'Hybrid'
-                            st.session_state.df_nsga = df_hybrid  # reuse NSGA plot pipeline
+                            st.session_state.results_hybrid = df_hybrid
                     else:
                         st.error("❌ Hybrid optimizer not properly initialized. Please click 'Initialize & Analyze Data' first.")
 
@@ -390,17 +388,24 @@ if st.session_state.get('data_loaded', False):
             st.metric("Delivery Available", f"{delivery_available} ({delivery_available/total_pairs*100:.1f}%)")
 
 # Results section
-if 'df_nsga' in st.session_state or 'df_econst' in st.session_state:
-    df_nsga = st.session_state.get('df_nsga', pd.DataFrame())
-    df_econst = st.session_state.get('df_econst', pd.DataFrame())
+if any(key in st.session_state for key in ['results_nsga', 'results_econst', 'results_hybrid']):
+    df_nsga = st.session_state.get('results_nsga', pd.DataFrame())
+    df_econst = st.session_state.get('results_econst', pd.DataFrame())
+    df_hybrid = st.session_state.get('results_hybrid', pd.DataFrame())
     
-    # Combine results for plotting
-    if not df_nsga.empty and not df_econst.empty:
-        df_combined = pd.concat([df_nsga, df_econst], ignore_index=True)
-    elif not df_nsga.empty:
-        df_combined = df_nsga
+    # Combine all available results for plotting
+    results_list = []
+    if not df_nsga.empty:
+        results_list.append(df_nsga)
+    if not df_econst.empty:
+        results_list.append(df_econst)
+    if not df_hybrid.empty:
+        results_list.append(df_hybrid)
+    
+    if results_list:
+        df_combined = pd.concat(results_list, ignore_index=True)
     else:
-        df_combined = df_econst
+        df_combined = pd.DataFrame()
     
     st.divider()
     
@@ -443,9 +448,26 @@ if 'df_nsga' in st.session_state or 'df_econst' in st.session_state:
             '<b>👆 Click to see details</b><br>' +
             '<extra></extra>'
         ))
+        
+    if not df_hybrid.empty:
+        fig.add_trace(go.Scatter(
+            x=df_hybrid["cost"],
+            y=df_hybrid["score"],
+            mode='markers',
+            name='Hybrid',
+            marker=dict(color='green', size=10),
+            text=df_hybrid.index,
+            customdata=df_hybrid.index,
+            hovertemplate=
+            '<b>Hybrid Solution %{text}</b><br>' +
+            'Cost: R%{x:,.0f}<br>' +
+            'Score: %{y:.2f}<br>' +
+            '<b>👆 Click to see details</b><br>' +
+            '<extra></extra>'
+        ))
     
     fig.update_layout(
-        title="Pareto Front Comparison: NSGA-II vs ε-Constraint",
+        title="Multi-Method Pareto Front Comparison",
         xaxis_title="Total Cost (R)",
         yaxis_title="Supplier Score",
         legend_title="Method",
@@ -474,6 +496,8 @@ if 'df_nsga' in st.session_state or 'df_econst' in st.session_state:
             st.metric("NSGA-II Solutions", len(df_nsga))
         if not df_econst.empty:
             st.metric("ε-Constraint Solutions", len(df_econst))
+        if not df_hybrid.empty:
+            st.metric("Hybrid Solutions", len(df_hybrid))
     
     with col2:
         # Distribution chart
@@ -492,6 +516,13 @@ if 'df_nsga' in st.session_state or 'df_econst' in st.session_state:
                 name='ε-Constraint',
                 opacity=0.7,
                 marker_color='red'
+            ))
+        if not df_hybrid.empty:
+            fig_dist.add_trace(go.Histogram(
+                x=df_hybrid['cost'],
+                name='Hybrid',
+                opacity=0.7,
+                marker_color='green'
             ))
         fig_dist.update_layout(
             title="Cost Distribution",
@@ -751,8 +782,9 @@ if 'df_nsga' in st.session_state or 'df_econst' in st.session_state:
     This application compares **NSGA-II** and **ε-Constraint** methods for supply chain optimization with **selective NA handling**.
     
     **Key Features:**
-    - 🔍 **Dual Optimization**: Run NSGA-II, ε-Constraint, or both
-    - 📊 **Pareto Front Comparison**: Visualize results from both methods on a single graph
+    - 🔍 **Multi-Method Optimization**: Run NSGA-II (blue), ε-Constraint (red), or Hybrid (green) methods
+    - 📊 **Stacked Results**: Results from different methods stack on the same Pareto front with color coding
+    - 🔄 **Result Replacement**: Running the same method again replaces its previous results
     - 🎯 **Multi-objective Optimization**: Minimizes cost while maximizing supplier scores
     - 🏭 **Complex Constraints**: Handles depot-specific supplier availability
     - 📈 **Interactive Analysis**: Click points to explore solutions
@@ -785,8 +817,9 @@ else:
     This application compares **NSGA-II** and **ε-Constraint** methods for supply chain optimization with **selective NA handling**.
     
     **Key Features:**
-    - 🔍 **Dual Optimization**: Run NSGA-II, ε-Constraint, or both
-    - 📊 **Pareto Front Comparison**: Visualize results from both methods on a single graph
+    - 🔍 **Multi-Method Optimization**: Run NSGA-II (blue), ε-Constraint (red), or Hybrid (green) methods
+    - 📊 **Stacked Results**: Results from different methods stack on the same Pareto front with color coding
+    - 🔄 **Result Replacement**: Running the same method again replaces its previous results
     - 🎯 **Multi-objective Optimization**: Minimizes cost while maximizing supplier scores
     - 🏭 **Complex Constraints**: Handles depot-specific supplier availability
     - 📈 **Interactive Analysis**: Click points to explore solutions
