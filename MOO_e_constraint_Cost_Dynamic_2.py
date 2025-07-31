@@ -7,7 +7,7 @@ import os
 from collections import defaultdict
 
 class SelectiveNAFlexibleEConstraintOptimizer:
-    def __init__(self, file_path, sheet_names=None):
+    def __init__(self, file_path, sheet_names=None, max_suppliers=None):
         """
         Initialize the e-constraint optimizer with selective NA handling
         """
@@ -20,6 +20,7 @@ class SelectiveNAFlexibleEConstraintOptimizer:
         
         self.file_path = file_path
         self.sheet_names = sheet_names
+        self.max_suppliers = max_suppliers  # Maximum number of unique suppliers allowed
         self.load_data()
     
     def load_data(self):
@@ -165,6 +166,10 @@ class SelectiveNAFlexibleEConstraintOptimizer:
         C = mdl.binary_var_dict(self.all_pairs, name="C")  # Collection
         D = mdl.binary_var_dict(self.all_pairs, name="D")  # Delivery
         
+        # Binary variables for whether each supplier is used (for max suppliers constraint)
+        if self.max_suppliers is not None:
+            Y = mdl.binary_var_dict(self.suppliers, name="Y")  # 1 if supplier is used, 0 otherwise
+        
         # Constraint: Exactly one valid allocation per depot
         for depot in self.depots:
             available_suppliers = list(self.depot_suppliers[depot])
@@ -188,6 +193,33 @@ class SelectiveNAFlexibleEConstraintOptimizer:
                 mdl.add_constraint(C[depot, supplier] == 0, ctname=f"disable_collection_{depot}_{supplier}")
             if not self.valid_delivery.get((depot, supplier), False):
                 mdl.add_constraint(D[depot, supplier] == 0, ctname=f"disable_delivery_{depot}_{supplier}")
+        
+        # Max suppliers constraint (if enabled)
+        if self.max_suppliers is not None:
+            # Link supplier usage variables to allocation variables
+            for supplier in self.suppliers:
+                supplier_operations = []
+                for depot in self.depots:
+                    if (depot, supplier) in self.all_pairs:
+                        supplier_operations.extend([C[depot, supplier], D[depot, supplier]])
+                
+                if supplier_operations:
+                    # Y[supplier] = 1 if any operation uses this supplier
+                    mdl.add_constraint(
+                        Y[supplier] >= (1.0 / len(supplier_operations)) * mdl.sum(supplier_operations),
+                        ctname=f"link_supplier_usage_{supplier}"
+                    )
+                    # Y[supplier] <= sum of all operations for this supplier
+                    mdl.add_constraint(
+                        Y[supplier] <= mdl.sum(supplier_operations),
+                        ctname=f"limit_supplier_usage_{supplier}"
+                    )
+            
+            # Limit total number of suppliers used
+            mdl.add_constraint(
+                mdl.sum(Y[supplier] for supplier in self.suppliers) <= self.max_suppliers,
+                ctname="max_suppliers_constraint"
+            )
         
         # Define objectives with selective coefficient usage
         # Cost objective (to minimize) - only apply coefficients for valid operations

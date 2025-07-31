@@ -11,7 +11,7 @@ random.seed(42)
 np.random.seed(42)
 
 class FixedFlexibleSupplyChainOptimizer:
-    def __init__(self, file_path, sheet_names=None):
+    def __init__(self, file_path, sheet_names=None, max_suppliers=None):
         """
         Initialize the optimizer with flexible data loading
         FIXED to match static version exactly + Selective NA handling
@@ -25,6 +25,7 @@ class FixedFlexibleSupplyChainOptimizer:
         
         self.file_path = file_path
         self.sheet_names = sheet_names
+        self.max_suppliers = max_suppliers  # Maximum number of unique suppliers allowed
         self.load_data()
         self.setup_deap()
     
@@ -282,6 +283,17 @@ class FixedFlexibleSupplyChainOptimizer:
         
         return C, D
     
+    def count_unique_suppliers(self, ind):
+        """Count the number of unique suppliers used in this individual"""
+        C, D = self.decode_individual(ind)
+        unique_suppliers = set()
+        
+        for (i, j) in self.all_pairs:
+            if C.get((i, j), 0) == 1 or D.get((i, j), 0) == 1:
+                unique_suppliers.add(j)
+        
+        return len(unique_suppliers)
+    
     def evaluate(self, ind):
         """Evaluate individual fitness with selective coefficient usage"""
         C, D = self.decode_individual(ind)
@@ -327,12 +339,87 @@ class FixedFlexibleSupplyChainOptimizer:
         return ind,
     
     def repair_individual(self, ind):
-        """Repair individual to ensure valid gene values for each depot"""
+        """Repair individual to ensure valid gene values for each depot and max suppliers constraint"""
+        # First, repair invalid gene values
         for i in range(len(ind)):
             depot = self.depots[i]
             if ind[i] not in self.feasible_choices[depot]:
                 # If invalid choice, select random valid choice for this depot
                 ind[i] = random.choice(self.feasible_choices[depot])
+        
+        # Then, repair max suppliers constraint if enabled
+        if self.max_suppliers is not None:
+            attempts = 0
+            max_attempts = 10
+            
+            # Keep trying to repair until constraint is satisfied or max attempts reached
+            while self.count_unique_suppliers(ind) > self.max_suppliers and attempts < max_attempts:
+                attempts += 1
+                
+                # Get current suppliers used and their frequency
+                C, D = self.decode_individual(ind)
+                supplier_usage = {}
+                depot_supplier_map = {}
+                
+                for depot_idx, gene_value in enumerate(ind):
+                    depot = self.depots[depot_idx]
+                    supplier_idx = gene_value // 2
+                    supplier = self.suppliers[supplier_idx] if supplier_idx < len(self.suppliers) else None
+                    
+                    if supplier is not None:
+                        if supplier not in supplier_usage:
+                            supplier_usage[supplier] = 0
+                        supplier_usage[supplier] += 1
+                        depot_supplier_map[depot] = supplier
+                
+                # Sort suppliers by usage (highest usage first = keep these)
+                sorted_suppliers = sorted(supplier_usage.items(), key=lambda x: x[1], reverse=True)
+                allowed_suppliers = [s[0] for s in sorted_suppliers[:self.max_suppliers]]
+                
+                # Reassign depots that use forbidden suppliers
+                for depot_idx, gene_value in enumerate(ind):
+                    depot = self.depots[depot_idx]
+                    supplier_idx = gene_value // 2
+                    supplier = self.suppliers[supplier_idx] if supplier_idx < len(self.suppliers) else None
+                    
+                    if supplier is not None and supplier not in allowed_suppliers:
+                        # Find choices that use allowed suppliers
+                        valid_choices = []
+                        for choice in self.feasible_choices[depot]:
+                            choice_supplier_idx = choice // 2
+                            choice_supplier = self.suppliers[choice_supplier_idx] if choice_supplier_idx < len(self.suppliers) else None
+                            if choice_supplier in allowed_suppliers:
+                                valid_choices.append(choice)
+                        
+                        if valid_choices:
+                            ind[depot_idx] = random.choice(valid_choices)
+                        # If no valid choices with allowed suppliers, keep current (will retry)
+            
+            # Final verification - if still violating, apply more aggressive repair
+            if self.count_unique_suppliers(ind) > self.max_suppliers:
+                # Select the top max_suppliers suppliers by total score
+                supplier_scores = {}
+                for supplier in self.suppliers:
+                    supplier_scores[supplier] = self.S.get(f"Supplier {supplier}", 0)
+                
+                top_suppliers = sorted(supplier_scores.items(), key=lambda x: x[1], reverse=True)[:self.max_suppliers]
+                allowed_suppliers = [s[0] for s in top_suppliers]
+                
+                # Force all depots to use only allowed suppliers
+                for depot_idx in range(len(ind)):
+                    depot = self.depots[depot_idx]
+                    current_supplier_idx = ind[depot_idx] // 2
+                    current_supplier = self.suppliers[current_supplier_idx] if current_supplier_idx < len(self.suppliers) else None
+                    
+                    if current_supplier not in allowed_suppliers:
+                        # Find first valid choice with allowed supplier
+                        for choice in self.feasible_choices[depot]:
+                            choice_supplier_idx = choice // 2
+                            choice_supplier = self.suppliers[choice_supplier_idx] if choice_supplier_idx < len(self.suppliers) else None
+                            if choice_supplier in allowed_suppliers:
+                                ind[depot_idx] = choice
+                                break
+        
         return ind
     
     def decode_solution_string(self, ind):

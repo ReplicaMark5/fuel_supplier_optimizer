@@ -107,12 +107,12 @@ def generate_supplier_ranking(allocations_str, optimizer_instance):
 
 # Configure page
 st.set_page_config(
-    page_title="Supply Chain Optimizer Comparison (NSGA-II vs ε-Constraint)",
+    page_title="Multi-Objective Optimizer Comparison (NSGA-II vs ε-Constraint vs Hybrid)",
     page_icon="🏭",
     layout="wide"
 )# Side
 
-st.title("🏭 Supply Chain Optimizer Comparison (NSGA-II vs ε-Constraint)")
+st.title("Multi-Objective Optimizer Comparison (NSGA-II vs ε-Constraint vs Hybrid)")
 st.markdown("*Compare multi-objective optimization methods with selective NA handling*")
 
 # Initialize session state for file path
@@ -168,13 +168,6 @@ with st.sidebar:
         st.markdown("Operator Definitions")
         indpb = st.slider("Mutation Rate per Gene", 0.0, 1.0, 0.05, help="Probability of mutation per gene in an individual")
     
-    if optimization_method == "Hybrid":
-        # For hybrid, we need both optimizers but will handle them specially
-        nsga_optimizer = FixedFlexibleSupplyChainOptimizer(file_path, sheet_names)
-        econst_optimizer = SelectiveNAFlexibleEConstraintOptimizer(file_path, sheet_names)
-        st.session_state.nsga_optimizer = nsga_optimizer
-        st.session_state.econst_optimizer = econst_optimizer
-        st.session_state.optimizer_instance = nsga_optimizer  # Use NSGA as primary for display
 
     # ε-Constraint Parameters
     if optimization_method in ["ε-Constraint", "Hybrid"]:
@@ -182,6 +175,16 @@ with st.sidebar:
         n_points = st.slider("Number of Epsilon Points", 5, 400, 21, help="Number of points to test in the Pareto front")
         constraint_type = st.selectbox("Constraint Type", ["cost", "score"], help="Which objective to constrain")
 
+    st.divider()
+    
+    # Maximum Suppliers Constraint (applies to all methods)
+    st.markdown("**Supply Chain Constraints**")
+    enable_max_suppliers = st.checkbox("Enable Maximum Suppliers Constraint", value=False, help="Limit the total number of unique suppliers that can be allocated across all depots")
+    
+    max_suppliers = None
+    if enable_max_suppliers:
+        max_suppliers = st.slider("Maximum Number of Suppliers", min_value=1, max_value=20, value=3, help="Maximum number of unique suppliers allowed to serve all depots")
+        st.info(f"🏢 Constraint: At most {max_suppliers} unique suppliers can be selected to serve all depots")
 
     
     random_seed = st.number_input("Random Seed", value=42, help="For reproducible results")
@@ -208,13 +211,20 @@ with st.sidebar:
                     np.random.seed(random_seed)
                     
                     if optimization_method == "NSGA-II":
-                        nsga_optimizer = FixedFlexibleSupplyChainOptimizer(file_path, sheet_names)
+                        nsga_optimizer = FixedFlexibleSupplyChainOptimizer(file_path, sheet_names, max_suppliers)
                         st.session_state.nsga_optimizer = nsga_optimizer
                         st.session_state.optimizer_instance = nsga_optimizer
                     elif optimization_method == "ε-Constraint":
-                        econst_optimizer = SelectiveNAFlexibleEConstraintOptimizer(file_path, sheet_names)
+                        econst_optimizer = SelectiveNAFlexibleEConstraintOptimizer(file_path, sheet_names, max_suppliers)
                         st.session_state.econst_optimizer = econst_optimizer
                         st.session_state.optimizer_instance = econst_optimizer
+                    elif optimization_method == "Hybrid":
+                        # For hybrid, we need both optimizers
+                        nsga_optimizer = FixedFlexibleSupplyChainOptimizer(file_path, sheet_names, max_suppliers)
+                        econst_optimizer = SelectiveNAFlexibleEConstraintOptimizer(file_path, sheet_names, max_suppliers)
+                        st.session_state.nsga_optimizer = nsga_optimizer
+                        st.session_state.econst_optimizer = econst_optimizer
+                        st.session_state.optimizer_instance = nsga_optimizer  # Use NSGA as primary for display
                     st.session_state.data_loaded = True
                     
                 st.success("✅ Data loaded and analyzed successfully!")
@@ -340,13 +350,18 @@ if st.session_state.get('data_loaded', False):
     # Display data analysis
     st.subheader("📊 Data Analysis")
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("🏭 Depots", len(optimizer.depots))
     with col2:
         st.metric("🚛 Suppliers", len(optimizer.suppliers))
     with col3:
         st.metric("🔗 Total Pairs", len(optimizer.all_pairs))
+    with col4:
+        if optimizer.max_suppliers is not None:
+            st.metric("🏢 Max Suppliers", f"{optimizer.max_suppliers}/{len(optimizer.suppliers)}")
+        else:
+            st.metric("🏢 Max Suppliers", "Unlimited")
 
 # Show depot-supplier availability
     with st.expander("🔍 Depot-Supplier Availability Analysis", expanded=False):
@@ -782,16 +797,16 @@ if any(key in st.session_state for key in ['results_nsga', 'results_econst', 're
     This application compares **NSGA-II** and **ε-Constraint** methods for supply chain optimization with **selective NA handling**.
     
     **Key Features:**
-    - 🔍 **Multi-Method Optimization**: Run NSGA-II (blue), ε-Constraint (red), or Hybrid (green) methods
-    - 📊 **Stacked Results**: Results from different methods stack on the same Pareto front with color coding
-    - 🔄 **Result Replacement**: Running the same method again replaces its previous results
-    - 🎯 **Multi-objective Optimization**: Minimizes cost while maximizing supplier scores
-    - 🏭 **Complex Constraints**: Handles depot-specific supplier availability
-    - 📈 **Interactive Analysis**: Click points to explore solutions
+    - **Multi-Method Optimization**: Run NSGA-II (blue), ε-Constraint (red), or Hybrid (green) methods
+    - **Stacked Results**: Results from different methods stack on the same Pareto front with color coding
+    - **Result Replacement**: Running the same method again replaces its previous results
+    - **Multi-objective Optimization**: Minimizes cost while maximizing supplier scores
+    - **Complex Constraints**: Handles depot-specific supplier availability
+    - **Interactive Analysis**: Click points to explore solutions
     
     **Objectives:**
-    - 📉 **Minimize Cost**: Total operational cost
-    - 📈 **Maximize Score**: Supplier performance score
+    - **Minimize Cost**: Total operational cost
+    - **Maximize Score**: Supplier performance score
     """)
     
     # System requirements
@@ -817,16 +832,16 @@ else:
     This application compares **NSGA-II** and **ε-Constraint** methods for supply chain optimization with **selective NA handling**.
     
     **Key Features:**
-    - 🔍 **Multi-Method Optimization**: Run NSGA-II (blue), ε-Constraint (red), or Hybrid (green) methods
-    - 📊 **Stacked Results**: Results from different methods stack on the same Pareto front with color coding
-    - 🔄 **Result Replacement**: Running the same method again replaces its previous results
-    - 🎯 **Multi-objective Optimization**: Minimizes cost while maximizing supplier scores
-    - 🏭 **Complex Constraints**: Handles depot-specific supplier availability
-    - 📈 **Interactive Analysis**: Click points to explore solutions
+    - **Multi-Method Optimization**: Run NSGA-II (blue), ε-Constraint (red), or Hybrid (green) methods
+    - **Stacked Results**: Results from different methods stack on the same Pareto front with color coding
+    - **Result Replacement**: Running the same method again replaces its previous results
+    - **Multi-objective Optimization**: Minimizes cost while maximizing supplier scores
+    - **Complex Constraints**: Handles depot-specific supplier availability
+    - **Interactive Analysis**: Click points to explore solutions
     
     **Objectives:**
-    - 📉 **Minimize Cost**: Total operational cost
-    - 📈 **Maximize Score**: Supplier performance score
+    - **Minimize Cost**: Total operational cost
+    - **Maximize Score**: Supplier performance score
     """)
     
     # Parameter guidance section
