@@ -1,0 +1,16 @@
+Transport Options per Depot 
+
+
+Option 1:    Collection  [cash, 30, 45, 60]
+COC rebate - transport cost 
+
+Option 2:    DEL & Already have equipment 
+DEL rebate + equipment finance & maintenance - cost on existing equipment 
+
+
+Option 3:  DEL & Buy Equipmemt 
+DEL rebate + equipment finance & maintenance - Equip cost calculation (Depreciation, Tax, WACC, O&M)
+
+
+Option 4:  DEL & Rent equipment
+DEL rebate 

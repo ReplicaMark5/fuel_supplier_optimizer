@@ -1,0 +1,6 @@
+UI Inputs Streamlit 
+
+- WACC%
+- Which depots already have equipment 
+- Depreciation method 
+- How many supplier contracts to award overall 

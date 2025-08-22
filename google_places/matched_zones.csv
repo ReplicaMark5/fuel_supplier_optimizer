@@ -1,0 +1,304 @@
+ID,Supply_Depot_Address,CountryFlag,Locality,Locality_Norm,Query_Locality,Matched_District,Match_Score,Match_Method,Fuel Zone,Magisterial code,Province,Match_Status
+1,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+2,"eMalahleni, 1035, South Africa",SA,eMalahleni,Witbank,Witbank,Witbank,100.0,fuzzy,09C,TB402,Mpumalanga,OK
+3,"Rustenburg, South Africa",SA,Rustenburg,Rustenburg,Rustenburg,Rustenburg,100.0,fuzzy,09C,SP303,North West,OK
+4,"Rustenburg, South Africa",SA,Rustenburg,Rustenburg,Rustenburg,Rustenburg,100.0,fuzzy,09C,SP303,North West,OK
+5,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+6,"Milnerton, Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+7,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+8,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+9,"Milnerton, Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+10,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+11,"Milnerton, Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+12,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+13,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+14,"Klerksdorp, South Africa",SA,Klerksdorp,Klerksdorp,Klerksdorp,Klerksdorp,100.0,fuzzy,09C,RT177,North West,OK
+15,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+16,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+17,"Klerksdorp, South Africa",SA,Klerksdorp,Klerksdorp,Klerksdorp,Klerksdorp,100.0,fuzzy,09C,RT177,North West,OK
+18,"Durban, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+19,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+20,"Rustenburg, South Africa",SA,Rustenburg,Rustenburg,Rustenburg,Rustenburg,100.0,fuzzy,09C,SP303,North West,OK
+21,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+22,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+23,"Durban, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+24,"Milnerton, Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+25,"Gqeberha, South Africa",SA,Gqeberha,Port Elizabeth,Port Elizabeth,Port Elizabeth,100.0,fuzzy,01A,EL263,Eastern Cape,OK
+26,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+27,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+28,"Klerksdorp, South Africa",SA,Klerksdorp,Klerksdorp,Klerksdorp,Klerksdorp,100.0,fuzzy,09C,RT177,North West,OK
+29,"Milnerton, Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+30,"Rustenburg, South Africa",SA,Rustenburg,Rustenburg,Rustenburg,Rustenburg,100.0,fuzzy,09C,SP303,North West,OK
+31,"eMalahleni, 1035, South Africa",SA,eMalahleni,Witbank,Witbank,Witbank,100.0,fuzzy,09C,TB402,Mpumalanga,OK
+32,"Langlaagte, Johannesburg, 2102, South Africa",SA,Johannesburg,Johannesburg,Johannesburg,Johannesburg,100.0,fuzzy,09C,RS157,Gauteng,OK
+33,"eMalahleni, 1035, South Africa",SA,eMalahleni,Witbank,Witbank,Witbank,100.0,fuzzy,09C,TB402,Mpumalanga,OK
+34,"Rustenburg, South Africa",SA,Rustenburg,Rustenburg,Rustenburg,Rustenburg,100.0,fuzzy,09C,SP303,North West,OK
+35,"Rustenburg, South Africa",SA,Rustenburg,Rustenburg,Rustenburg,Rustenburg,100.0,fuzzy,09C,SP303,North West,OK
+36,"Rustenburg, South Africa",SA,Rustenburg,Rustenburg,Rustenburg,Rustenburg,100.0,fuzzy,09C,SP303,North West,OK
+37,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+38,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+39,"Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+40,"Langlaagte, Johannesburg, 2102, South Africa",SA,Johannesburg,Johannesburg,Johannesburg,Johannesburg,100.0,fuzzy,09C,RS157,Gauteng,OK
+41,"eMalahleni, 1035, South Africa",SA,eMalahleni,Witbank,Witbank,Witbank,100.0,fuzzy,09C,TB402,Mpumalanga,OK
+42,"Langlaagte, Johannesburg, 2102, South Africa",SA,Johannesburg,Johannesburg,Johannesburg,Johannesburg,100.0,fuzzy,09C,RS157,Gauteng,OK
+43,"Klerksdorp, South Africa",SA,Klerksdorp,Klerksdorp,Klerksdorp,Klerksdorp,100.0,fuzzy,09C,RT177,North West,OK
+44,"Langlaagte, Johannesburg, 2102, South Africa",SA,Johannesburg,Johannesburg,Johannesburg,Johannesburg,100.0,fuzzy,09C,RS157,Gauteng,OK
+45,"Klerksdorp, South Africa",SA,Klerksdorp,Klerksdorp,Klerksdorp,Klerksdorp,100.0,fuzzy,09C,RT177,North West,OK
+46,"eMalahleni, 1035, South Africa",SA,eMalahleni,Witbank,Witbank,Witbank,100.0,fuzzy,09C,TB402,Mpumalanga,OK
+47,"Langlaagte, Johannesburg, 2102, South Africa",SA,Johannesburg,Johannesburg,Johannesburg,Johannesburg,100.0,fuzzy,09C,RS157,Gauteng,OK
+48,"Bloemfontein, South Africa",SA,Bloemfontein,Bloemfontein,Bloemfontein,Bloemfontein,100.0,fuzzy,11C,PC042,Free State,OK
+49,"Langlaagte, Johannesburg, 2102, South Africa",SA,Johannesburg,Johannesburg,Johannesburg,Johannesburg,100.0,fuzzy,09C,RS157,Gauteng,OK
+50,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+51,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+52,"Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+53,"Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+54,"eMalahleni, 1035, South Africa",SA,eMalahleni,Witbank,Witbank,Witbank,100.0,fuzzy,09C,TB402,Mpumalanga,OK
+55,"Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+56,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+57,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+58,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+59,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+60,"Wentworth, Bluff, 4052, South Africa",SA,Bluff,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+61,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+62,"Rustenburg, South Africa",SA,Rustenburg,Rustenburg,Rustenburg,Rustenburg,100.0,fuzzy,09C,SP303,North West,OK
+63,"Mbombela, South Africa",SA,Mbombela,Nelspruit,Nelspruit,Nelspruit,100.0,fuzzy,61C,SC246,Mpumalanga,OK
+64,"Mbombela, South Africa",SA,Mbombela,Nelspruit,Nelspruit,Nelspruit,100.0,fuzzy,61C,SC246,Mpumalanga,OK
+65,"Langlaagte, Johannesburg, 2102, South Africa",SA,Johannesburg,Johannesburg,Johannesburg,Johannesburg,100.0,fuzzy,09C,RS157,Gauteng,OK
+66,"Rustenburg, South Africa",SA,Rustenburg,Rustenburg,Rustenburg,Rustenburg,100.0,fuzzy,09C,SP303,North West,OK
+67,"Klerksdorp, South Africa",SA,Klerksdorp,Klerksdorp,Klerksdorp,Klerksdorp,100.0,fuzzy,09C,RT177,North West,OK
+68,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+69,"Wentworth, Bluff, 4052, South Africa",SA,Bluff,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+70,"Wentworth, Bluff, 4052, South Africa",SA,Bluff,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+71,"Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+72,"Gqeberha, South Africa",SA,Gqeberha,Port Elizabeth,Port Elizabeth,Port Elizabeth,100.0,fuzzy,01A,EL263,Eastern Cape,OK
+73,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+74,"Rustenburg, South Africa",SA,Rustenburg,Rustenburg,Rustenburg,Rustenburg,100.0,fuzzy,09C,SP303,North West,OK
+75,"eMalahleni, 1035, South Africa",SA,eMalahleni,Witbank,Witbank,Witbank,100.0,fuzzy,09C,TB402,Mpumalanga,OK
+76,"Langlaagte, Johannesburg, 2102, South Africa",SA,Johannesburg,Johannesburg,Johannesburg,Johannesburg,100.0,fuzzy,09C,RS157,Gauteng,OK
+77,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+78,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+79,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+80,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+81,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+82,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+83,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+84,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+85,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+86,"100 Duncan Rd, Foreshore, Cape Town, 8001, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+87,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+88,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+89,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+90,"Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+91,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+92,"Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+93,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+94,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+95,"Island View Rd, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+96,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+97,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+98,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+99,"Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+100,"100 Duncan Rd, Foreshore, Cape Town, 8001, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+101,"Island View Rd, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+102,"Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+103,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+104,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+105,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+106,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+107,"Island View Rd, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+108,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+109,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+110,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+111,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+112,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+113,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+114,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+115,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+116,"Island View Rd, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+117,"Island View Rd, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+118,"100 Duncan Rd, Foreshore, Cape Town, 8001, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+119,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+120,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+121,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+122,"Island View Rd, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+123,"100 Duncan Rd, Foreshore, Cape Town, 8001, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+124,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+125,"Richards Bay, South Africa",SA,Richards Bay,Lower Umfolozi,Lower Umfolozi,Lower Umfolozi,100.0,fuzzy,05A,LT192,KwaZulu Natal,OK
+126,"Richards Bay, South Africa",SA,Richards Bay,Lower Umfolozi,Lower Umfolozi,Lower Umfolozi,100.0,fuzzy,05A,LT192,KwaZulu Natal,OK
+127,"Richards Bay, South Africa",SA,Richards Bay,Lower Umfolozi,Lower Umfolozi,Lower Umfolozi,100.0,fuzzy,05A,LT192,KwaZulu Natal,OK
+128,"Secunda, 2302, South Africa",SA,Secunda,Highveld Ridge,Highveld Ridge,Highveld Ridge,100.0,fuzzy,09C,SG137,Mpumalanga,OK
+129,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+130,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+131,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+132,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+133,"Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+134,"Richards Bay, South Africa",SA,Richards Bay,Lower Umfolozi,Lower Umfolozi,Lower Umfolozi,100.0,fuzzy,05A,LT192,KwaZulu Natal,OK
+135,"Secunda, 2302, South Africa",SA,Secunda,Highveld Ridge,Highveld Ridge,Highveld Ridge,100.0,fuzzy,09C,SG137,Mpumalanga,OK
+136,"Richards Bay, South Africa",SA,Richards Bay,Lower Umfolozi,Lower Umfolozi,Lower Umfolozi,100.0,fuzzy,05A,LT192,KwaZulu Natal,OK
+137,"Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+138,"Richards Bay, South Africa",SA,Richards Bay,Lower Umfolozi,Lower Umfolozi,Lower Umfolozi,100.0,fuzzy,05A,LT192,KwaZulu Natal,OK
+139,"Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+140,"Richards Bay, South Africa",SA,Richards Bay,Lower Umfolozi,Lower Umfolozi,Lower Umfolozi,100.0,fuzzy,05A,LT192,KwaZulu Natal,OK
+141,"Secunda, 2302, South Africa",SA,Secunda,Highveld Ridge,Highveld Ridge,Highveld Ridge,100.0,fuzzy,09C,SG137,Mpumalanga,OK
+142,"Bloemfontein, South Africa",SA,Bloemfontein,Bloemfontein,Bloemfontein,Bloemfontein,100.0,fuzzy,11C,PC042,Free State,OK
+143,"Richards Bay, South Africa",SA,Richards Bay,Lower Umfolozi,Lower Umfolozi,Lower Umfolozi,100.0,fuzzy,05A,LT192,KwaZulu Natal,OK
+144,"Richards Bay, South Africa",SA,Richards Bay,Lower Umfolozi,Lower Umfolozi,Lower Umfolozi,100.0,fuzzy,05A,LT192,KwaZulu Natal,OK
+145,"Secunda, 2302, South Africa",SA,Secunda,Highveld Ridge,Highveld Ridge,Highveld Ridge,100.0,fuzzy,09C,SG137,Mpumalanga,OK
+146,"Mossel Bay, South Africa",SA,Mossel Bay,Mossel Bay,Mossel Bay,Mossel Bay,100.0,fuzzy,01A,DV206,Western Cape,OK
+147,"Mossel Bay, South Africa",SA,Mossel Bay,Mossel Bay,Mossel Bay,Mossel Bay,100.0,fuzzy,01A,DV206,Western Cape,OK
+148,"Richards Bay, South Africa",SA,Richards Bay,Lower Umfolozi,Lower Umfolozi,Lower Umfolozi,100.0,fuzzy,05A,LT192,KwaZulu Natal,OK
+149,"Mossel Bay, South Africa",SA,Mossel Bay,Mossel Bay,Mossel Bay,Mossel Bay,100.0,fuzzy,01A,DV206,Western Cape,OK
+150,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+151,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+152,"Secunda, 2302, South Africa",SA,Secunda,Highveld Ridge,Highveld Ridge,Highveld Ridge,100.0,fuzzy,09C,SG137,Mpumalanga,OK
+153,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+154,"Durban, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+155,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+156,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+157,"Emjejane, Malalane, 1330, South Africa",SA,Malalane,Nkomazi (Kamhulshwa),Nkomazi (Kamhulshwa),Nkomazi (Kamhulshwa),100.0,fuzzy,61C,6A456,Mpumalanga,OK
+158,"Emjejane, Malalane, 1330, South Africa",SA,Malalane,Nkomazi (Kamhulshwa),Nkomazi (Kamhulshwa),Nkomazi (Kamhulshwa),100.0,fuzzy,61C,6A456,Mpumalanga,OK
+159,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+160,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+161,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+162,"Richards Bay, South Africa",SA,Richards Bay,Lower Umfolozi,Lower Umfolozi,Lower Umfolozi,100.0,fuzzy,05A,LT192,KwaZulu Natal,OK
+163,"Durban, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+164,"Durban, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+165,"Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+166,"Gqeberha, South Africa",SA,Gqeberha,Port Elizabeth,Port Elizabeth,Port Elizabeth,100.0,fuzzy,01A,EL263,Eastern Cape,OK
+167,"Richards Bay, South Africa",SA,Richards Bay,Lower Umfolozi,Lower Umfolozi,Lower Umfolozi,100.0,fuzzy,05A,LT192,KwaZulu Natal,OK
+168,"Richards Bay, South Africa",SA,Richards Bay,Lower Umfolozi,Lower Umfolozi,Lower Umfolozi,100.0,fuzzy,05A,LT192,KwaZulu Natal,OK
+169,"Bloemfontein, South Africa",SA,Bloemfontein,Bloemfontein,Bloemfontein,Bloemfontein,100.0,fuzzy,11C,PC042,Free State,OK
+170,"Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+171,,Foreign,nan,nan,,,,,,,,FOREIGN
+172,,Foreign,nan,nan,,,,,,,,FOREIGN
+173,,Foreign,nan,nan,,,,,,,,FOREIGN
+174,,Foreign,nan,nan,,,,,,,,FOREIGN
+175,,Foreign,nan,nan,,,,,,,,FOREIGN
+176,,Foreign,nan,nan,,,,,,,,FOREIGN
+177,,Foreign,nan,nan,,,,,,,,FOREIGN
+178,,Foreign,nan,nan,,,,,,,,FOREIGN
+179,,Foreign,nan,nan,,,,,,,,FOREIGN
+180,,Foreign,nan,nan,,,,,,,,FOREIGN
+181,,Foreign,nan,nan,,,,,,,,FOREIGN
+182,,Foreign,nan,nan,,,,,,,,FOREIGN
+183,,Foreign,nan,nan,,,,,,,,FOREIGN
+184,,Foreign,nan,nan,,,,,,,,FOREIGN
+185,,Foreign,nan,nan,,,,,,,,FOREIGN
+186,,Foreign,nan,nan,,,,,,,,FOREIGN
+187,,Foreign,nan,nan,,,,,,,,FOREIGN
+188,,Foreign,nan,nan,,,,,,,,FOREIGN
+189,,Foreign,nan,nan,,,,,,,,FOREIGN
+190,,Foreign,nan,nan,,,,,,,,FOREIGN
+191,,Foreign,nan,nan,,,,,,,,FOREIGN
+192,,Foreign,nan,nan,,,,,,,,FOREIGN
+193,,Foreign,nan,nan,,,,,,,,FOREIGN
+194,,Foreign,nan,nan,,,,,,,,FOREIGN
+195,,Foreign,nan,nan,,,,,,,,FOREIGN
+196,,Foreign,nan,nan,,,,,,,,FOREIGN
+197,,Foreign,nan,nan,,,,,,,,FOREIGN
+198,,Foreign,nan,nan,,,,,,,,FOREIGN
+199,,Foreign,nan,nan,,,,,,,,FOREIGN
+200,,Foreign,nan,nan,,,,,,,,FOREIGN
+201,,Foreign,nan,nan,,,,,,,,FOREIGN
+202,"Rocky Drift, White River, 1240, South Africa",SA,White River,White River,White River,White River,100.0,fuzzy,61C,TH405,Mpumalanga,OK
+203,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+204,"Alberton, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+205,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+206,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+207,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+208,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+209,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+210,"Milnerton, Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+211,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+212,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+213,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+214,"Klerksdorp, South Africa",SA,Klerksdorp,Klerksdorp,Klerksdorp,Klerksdorp,100.0,fuzzy,09C,RT177,North West,OK
+215,"Bethlehem, South Africa",SA,Bethlehem,Bethlehem,Bethlehem,Bethlehem,100.0,fuzzy,07C,PA038,Free State,OK
+216,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+217,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+218,"Mossel Bay, South Africa",SA,Mossel Bay,Mossel Bay,Mossel Bay,Mossel Bay,100.0,fuzzy,01A,DV206,Western Cape,OK
+219,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+220,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+221,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+222,"Klerksdorp, South Africa",SA,Klerksdorp,Klerksdorp,Klerksdorp,Klerksdorp,100.0,fuzzy,09C,RT177,North West,OK
+223,"Island View Rd, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+224,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+225,"Mbombela, South Africa",SA,Mbombela,Nelspruit,Nelspruit,Nelspruit,100.0,fuzzy,61C,SC246,Mpumalanga,OK
+226,"Mbombela, South Africa",SA,Mbombela,Nelspruit,Nelspruit,Nelspruit,100.0,fuzzy,61C,SC246,Mpumalanga,OK
+227,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+228,"Klerksdorp, South Africa",SA,Klerksdorp,Klerksdorp,Klerksdorp,Klerksdorp,100.0,fuzzy,09C,RT177,North West,OK
+229,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+230,"Island View Rd, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+231,"Milnerton, Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+232,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+233,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+234,"Bethlehem, South Africa",SA,Bethlehem,Bethlehem,Bethlehem,Bethlehem,100.0,fuzzy,07C,PA038,Free State,OK
+235,"Mbombela, South Africa",SA,Mbombela,Nelspruit,Nelspruit,Nelspruit,100.0,fuzzy,61C,SC246,Mpumalanga,OK
+236,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+237,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+238,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+239,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+240,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+241,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+242,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+243,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+244,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+245,"Island View Rd, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+246,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+247,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+248,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+249,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+250,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+251,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+252,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+253,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+254,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+255,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+256,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+257,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+258,"Island View Rd, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+259,"Island View Rd, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+260,"26 Kuwait Rd, Bayhead, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+261,"Milnerton, Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+262,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+263,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+264,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+265,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+266,"26 Kuwait Rd, Bayhead, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+267,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+268,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+269,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+270,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+271,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+272,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+273,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+274,"Potgieter St, Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+275,"26 Kuwait Rd, Bayhead, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+276,"26 Kuwait Rd, Bayhead, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+277,"Island View Rd, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+278,"Gqeberha, South Africa",SA,Gqeberha,Port Elizabeth,Port Elizabeth,Port Elizabeth,100.0,fuzzy,01A,EL263,Eastern Cape,OK
+279,"26 Kuwait Rd, Bayhead, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+280,"26 Kuwait Rd, Bayhead, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+281,"Island View Rd, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+282,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+283,"Lesedi Local Municipality, South Africa",SA,Lesedi Local Municipality,Heidelberg,Heidelberg,Heidelberg (Gauteng),90.0,fuzzy,09C,RR136,Gauteng,OK
+284,"Bosmansdam Rd, Marconi Beam, Cape Town, 7447, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+285,"Island View Rd, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+286,South Africa,SA,South Africa,South Africa,South Africa,Dzanani South (West of Makhado),85.5,fuzzy,13C,9F013,Limpopo,OK
+287,"Francistown, Botswana",Foreign,Botswana,Botswana,,,,,,,,FOREIGN
+288,"Gaborone, Botswana",Foreign,Botswana,Botswana,,,,,,,,FOREIGN
+289,"Matola, Mozambique",Foreign,Mozambique,Mozambique,,,,,,,,FOREIGN
+290,"Matsapha, Eswatini",Foreign,Eswatini,Eswatini,,,,,,,,FOREIGN
+291,"Walvis Bay, Namibia",Foreign,Namibia,Namibia,,,,,,,,FOREIGN
+292,"Alrode, Alberton, 1451, South Africa",SA,Alberton,Alberton,Alberton,Alberton,100.0,fuzzy,09C,TM008,Gauteng,OK
+293,"Cape Town, South Africa",SA,Cape Town,Cape Town,Cape Town,Cape Town,100.0,fuzzy,01A,BV050,Western Cape,OK
+294,"Jan Haak Rd, Industrial Zone 2, Sasolburg, 1947, South Africa",SA,Sasolburg,Sasolburg,Sasolburg,Sasolburg,100.0,fuzzy,09C,NR325,Free State,OK
+295,"Sapref, 4133, South Africa",SA,Sapref,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+296,"Synfuels Rd, Secunda, South Africa",SA,Secunda,Highveld Ridge,Highveld Ridge,Highveld Ridge,100.0,fuzzy,09C,SG137,Mpumalanga,OK
+297,"East London, South Africa",SA,East London,East London,East London,East London,100.0,fuzzy,01A,CH083,Eastern Cape,OK
+298,"Waltloo, Pretoria, 0184, South Africa",SA,Pretoria,Pretoria,Pretoria,Pretoria,100.0,fuzzy,09C,SL277,Gauteng,OK
+299,"Island View Rd, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+300,"105 Taiwan Rd, Island View, Durban, 4052, South Africa",SA,Durban,Durban,Durban,Durban,100.0,fuzzy,01A,LF072,KwaZulu Natal,OK
+301,"GCMF+3J, Nigel, South Africa",SA,Nigel,Nigel,Nigel,Nigel,100.0,fuzzy,09C,SD247,Gauteng,OK
+302,"eMalahleni, 1035, South Africa",SA,eMalahleni,Witbank,Witbank,Witbank,100.0,fuzzy,09C,TB402,Mpumalanga,OK
+303,"Jan Haak Rd, Industrial Zone 2, Sasolburg, 1947, South Africa",SA,Sasolburg,Sasolburg,Sasolburg,Sasolburg,100.0,fuzzy,09C,NR325,Free State,OK

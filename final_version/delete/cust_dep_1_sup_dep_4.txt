@@ -1,0 +1,205 @@
+🔍 VERBOSE DEBUG: Depot 1 → Supplier Depot 4
+================================================================================
+VERBOSE DEBUG: Customer Depot 1 → Supplier Depot 4
+================================================================================
+
+📋 BASIC INFORMATION:
+   Supplier ID: 1
+   Supplier Name: Supplier A
+   Supplier Depot Name: Waltloo
+   Distance: 475.59 km            <-----------**INCORRECT**
+   Available Options: ['coc_cash', 'coc_30', 'coc_45', 'coc_60']
+
+💰 BASE COSTS (Phase 1):
+   coc_cash: R21.066972/litre
+   coc_30: R20.348536/litre    <-----*CORRECT**
+   coc_45: R20.747320/litre
+   coc_60: R20.641859/litre
+
+⚙️ CONFIGURATION:
+   WACC: 12.5%
+   Tanker cost/km: R15.5
+   Tanker capacity: 30000 litres
+
+📊 RAW DATA FROM DATABASE:
+   Wholesale Price (Fuel Zone 09C): R2090.57
+   COC Rebates: cash=0.0, 30d=0.51, 45d=0.0, 60d=0.0
+   DEL Rebate (30d): nan
+   Equipment Costs: fin=nan, main=nan
+   Distance: 156.07 km
+
+🎯 APPLICABLE VOLUME TIER CONFIGURATIONS:
+   No volume tier configurations apply
+
+🔢 DETAILED CALCULATIONS BY VOLUME BREAKPOINT:
+================================================================================
+
+📈 VOLUME SCENARIO: 0 litres
+------------------------------------------------------------
+
+   💡 COC_CASH CALCULATION:
+      Final Cost: R21.066972/litre
+      Same as Base Cost: R21.066972/litre
+      Volume Tier Applied: NO
+
+   💡 COC_30 CALCULATION:
+      Final Cost: R20.348536/litre
+      Same as Base Cost: R20.348536/litre
+      Volume Tier Applied: NO
+
+   💡 COC_45 CALCULATION:
+      Final Cost: R20.747320/litre
+      Same as Base Cost: R20.747320/litre
+      Volume Tier Applied: NO
+
+   💡 COC_60 CALCULATION:
+      Final Cost: R20.641859/litre
+      Same as Base Cost: R20.641859/litre
+      Volume Tier Applied: NO
+
+   📊 VOLUME TIER METADATA:
+      Total Rebate (PV): R0.000000/litre
+      Applied Tiers: 1
+        - {'tier_name': 'supplier_A_coc_20M_tier', 'rebate_pv': 0, 'combination_rule': 'override', 'logic': 'stacked'}
+
+📈 VOLUME SCENARIO: 10,000,000 litres
+------------------------------------------------------------
+
+   💡 COC_CASH CALCULATION:
+      Final Cost: R21.066972/litre
+      Same as Base Cost: R21.066972/litre
+      Volume Tier Applied: NO
+
+   💡 COC_30 CALCULATION:
+      Final Cost: R20.348536/litre
+      Same as Base Cost: R20.348536/litre
+      Volume Tier Applied: NO
+
+   💡 COC_45 CALCULATION:
+      Final Cost: R20.747320/litre
+      Same as Base Cost: R20.747320/litre
+      Volume Tier Applied: NO
+
+   💡 COC_60 CALCULATION:
+      Final Cost: R20.641859/litre
+      Same as Base Cost: R20.641859/litre
+      Volume Tier Applied: NO
+
+   📊 VOLUME TIER METADATA:
+      Total Rebate (PV): R0.000000/litre
+      Applied Tiers: 1
+        - {'tier_name': 'supplier_A_coc_20M_tier', 'rebate_pv': 0.0, 'combination_rule': 'override', 'logic': 'stacked'}
+
+📈 VOLUME SCENARIO: 15,000,000 litres
+------------------------------------------------------------
+
+   💡 COC_CASH CALCULATION:
+      Final Cost: R21.066972/litre
+      Same as Base Cost: R21.066972/litre
+      Volume Tier Applied: NO
+
+   💡 COC_30 CALCULATION:
+      Final Cost: R20.348536/litre
+      Same as Base Cost: R20.348536/litre
+      Volume Tier Applied: NO
+
+   💡 COC_45 CALCULATION:
+      Final Cost: R20.747320/litre
+      Same as Base Cost: R20.747320/litre
+      Volume Tier Applied: NO
+
+   💡 COC_60 CALCULATION:
+      Final Cost: R20.641859/litre
+      Same as Base Cost: R20.641859/litre
+      Volume Tier Applied: NO
+
+   📊 VOLUME TIER METADATA:
+      Total Rebate (PV): R0.000000/litre
+      Applied Tiers: 1
+        - {'tier_name': 'supplier_A_coc_20M_tier', 'rebate_pv': 0.0, 'combination_rule': 'override', 'logic': 'stacked'}
+
+📈 VOLUME SCENARIO: 20,000,000 litres
+------------------------------------------------------------
+
+   💡 COC_CASH CALCULATION:
+      Final Cost: R21.066972/litre
+      Same as Base Cost: R21.066972/litre
+      Volume Tier Applied: NO
+
+   💡 COC_30 CALCULATION:
+      Final Cost: R20.348536/litre
+      Same as Base Cost: R20.348536/litre
+      Volume Tier Applied: NO
+
+   💡 COC_45 CALCULATION:
+      Final Cost: R20.747320/litre
+      Same as Base Cost: R20.747320/litre
+      Volume Tier Applied: NO
+
+   💡 COC_60 CALCULATION:
+      Final Cost: R20.641859/litre
+      Same as Base Cost: R20.641859/litre
+      Volume Tier Applied: NO
+
+   📊 VOLUME TIER METADATA:
+      Total Rebate (PV): R0.000000/litre
+      Applied Tiers: 1
+        - {'tier_name': 'supplier_A_coc_20M_tier', 'rebate_pv': 0.0, 'combination_rule': 'override', 'logic': 'stacked'}
+
+📈 VOLUME SCENARIO: 25,000,000 litres
+------------------------------------------------------------
+
+   💡 COC_CASH CALCULATION:
+      Final Cost: R21.066972/litre
+      Same as Base Cost: R21.066972/litre
+      Volume Tier Applied: NO
+
+   💡 COC_30 CALCULATION:
+      Final Cost: R21.294206/litre          <----**INCORRECT**  [should be R20.338638/litre    formula for overide is this (COC_30_price_pl_pv = ((rtl_wholesale_Sup_Dep/100) - vol_tier_reb_30D)/(1+WACC%/365)^30     <---- where vol_tier_rev_30D replaces 'COC_reb_pl_30' on the original calc for overide)]
+      Base Cost: R20.348536/litre           <-----**CORRECT**
+      Volume Tier Impact: R0.945670/litre    <----**INCORRECT**
+      Volume Tier Applied: YES    <----Correct
+
+   💡 COC_45 CALCULATION:
+      Final Cost: R20.747320/litre
+      Same as Base Cost: R20.747320/litre
+      Volume Tier Applied: NO
+
+   💡 COC_60 CALCULATION:
+      Final Cost: R20.641859/litre
+      Same as Base Cost: R20.641859/litre
+      Volume Tier Applied: NO
+
+   📊 VOLUME TIER METADATA:
+      Total Rebate (PV): R-0.945670/litre
+      Applied Tiers: 1
+        - {'tier_name': 'supplier_A_coc_20M_tier', 'rebate_pv': 0.1029371579846625, 'combination_rule': 'override', 'logic': 'stacked'}
+
+📈 VOLUME SCENARIO: 30,000,000 litres
+------------------------------------------------------------
+
+   💡 COC_CASH CALCULATION:
+      Final Cost: R21.066972/litre
+      Same as Base Cost: R21.066972/litre
+      Volume Tier Applied: NO
+
+   💡 COC_30 CALCULATION:
+      Final Cost: R21.225581/litre           <-----*INCORRECT**[should be same as tier bellow due to config]
+      Base Cost: R20.348536/litre
+      Volume Tier Impact: R0.877045/litre     <-----*INCORRECT**[should be same as tier bellow due to config]
+      Volume Tier Applied: YES
+
+   💡 COC_45 CALCULATION:
+      Final Cost: R20.747320/litre
+      Same as Base Cost: R20.747320/litre
+      Volume Tier Applied: NO
+
+   💡 COC_60 CALCULATION:
+      Final Cost: R20.641859/litre
+      Same as Base Cost: R20.641859/litre
+      Volume Tier Applied: NO
+
+   📊 VOLUME TIER METADATA:
+      Total Rebate (PV): R-0.877045/litre
+      Applied Tiers: 1
+        - {'tier_name': 'supplier_A_coc_20M_tier', 'rebate_pv': 0.1715619299744375, 'combination_rule': 'override', 'logic': 'stacked'}

@@ -1,0 +1,223 @@
+# Precomputation Design: Pandas + Dictionary Approach
+
+
+## Data Flow Overview:
+1. Load raw data from SQLite into Pandas DataFrame
+2. Apply user input parameters to compute all cost coefficients 
+3. Organize computed results into nested dictionaries for solver access
+
+## User Input Parameters (JSON config file):   
+- fuel_type: 'Diesel 0.005% sulfur' or 'Diesel 0.05% sulfur'
+- wacc_percent: Cost of capital percentage (e.g., 12.5)
+- tanker_cost_per_km: Transport cost in R/km (e.g., 15.50)
+- tanker_capacity: Tanker capacity in litres (e.g., 30000)
+- cost_owned_equip_pv: Cost per litre for owned equipment PV
+- cost_buy_equip_pv: Cost per litre for buying equipment PV
+- international_fuel_prices: Dictionary of fuel prices for international depots
+  Example: {'Botswana': 18.50, 'Namibia': 19.20, 'Mozambique': 17.80, 'Eswatini': 18.90}
+
+## Step 1: Base Data Loading (Pandas DataFrame)
+Query joins the following tables:
+- coc_del_vol_dist_equip (1,764 rows with rebates, distances, equipment costs)
+- supplier_depots (fuel zones for each supplier depot)  
+- customer_depots (depot volumes)
+- diesel_prices (rtl_wholesale prices by fuel zone and product type)
+
+### Fuel Zone Mapping (SA vs International):
+- **South African depots**: Use fuel zone mapping with LTRIM('0') transformation
+  (e.g., '01A' → '1A', '09C' → '9C')
+- **International depots**: NULL fuel zones indicate non-SA locations
+  (Botswana, Namibia, Mozambique, Eswatini - use user-provided international prices)
+
+Base DataFrame columns:
+- Supplier_FK, Customer_Depot_FK, Supplier_Depot_FK, Volume_Tier_FK
+- One_Way_Dist, depot_annual_volume
+- COC_reb_pl_cash, COC_reb_pl_30, COC_reb_pl_45, COC_reb_pl_60
+- DEL_reb_pl_30, equip_fin_pl_30, equip_main_pl_30
+- rtl_wholesale (matched by supplier depot fuel zone)
+- fuel_zone_clean (processed fuel zone for SA depots)
+- is_international (boolean flag for international depots)
+- depot_country (country name for international pricing lookup)
+
+## Step 2: Vectorized Computations (All 1,764 rows calculated simultaneously)
+
+### Data Preprocessing:
+# Clean fuel zones for SA depots (09A → 9A, 01A → 1A)
+fuel_zone_clean = df['Fuel_Zone'].str.lstrip('0').fillna('')
+is_international = df['Fuel_Zone'].isnull()
+
+# Apply fuel pricing based on location type:
+rtl_wholesale_per_litre = np.where(
+    is_international,
+    df['depot_country'].map(international_fuel_prices),  # International pricing
+    df['rtl_wholesale'] / 100  # SA pricing (cents to rand)
+)
+
+### Transport Cost Calculation:
+trans_cost_pl = ((One_Way_Dist * 2 * tanker_cost_per_km) / tanker_capacity)
+
+### COC Option Calculations:
+
+COC_cash_price_pl_pv = rtl_wholesale_per_litre - COC_reb_pl_cash
+COC_30_price_pl_pv = (rtl_wholesale_per_litre - COC_reb_pl_30) / ((1 + wacc_percent/365) ** 30)
+COC_45_price_pl_pv = (rtl_wholesale_per_litre - COC_reb_pl_45) / ((1 + wacc_percent/365) ** 45) 
+COC_60_price_pl_pv = (rtl_wholesale_per_litre - COC_reb_pl_60) / ((1 + wacc_percent/365) ** 60)
+
+# Final COC costs (subtract transport since it's collection)
+COC_cash_total_cost_pl_pv = COC_cash_price_pl_pv - trans_cost_pl
+COC_30_total_cost_pl_pv = COC_30_price_pl_pv - trans_cost_pl
+COC_45_total_cost_pl_pv = COC_45_price_pl_pv - trans_cost_pl
+COC_60_total_cost_pl_pv = COC_60_price_pl_pv - trans_cost_pl
+
+### DEL Option Calculations:
+
+# DEL Own Equipment:
+DEL_own_reb_combined = DEL_reb_pl_30 + equip_fin_pl_30 + equip_main_pl_30
+DEL_own_price_pl_pv = (rtl_wholesale_per_litre - DEL_own_reb_combined) / ((1 + wacc_percent/365) ** 30)
+DEL_own_total_cost_pl_pv = DEL_own_price_pl_pv + cost_owned_equip_pv
+
+# DEL Buy Equipment:  
+DEL_buy_reb_combined = DEL_reb_pl_30 + equip_fin_pl_30 + equip_main_pl_30
+DEL_buy_price_pl_pv = (rtl_wholesale_per_litre - DEL_buy_reb_combined) / ((1 + wacc_percent/365) ** 30)
+DEL_buy_total_cost_pl_pv = DEL_buy_price_pl_pv + cost_buy_equip_pv
+
+# DEL Rent Equipment:
+DEL_rent_total_cost_pl_pv = (rtl_wholesale_per_litre - DEL_reb_pl_30) / ((1 + wacc_percent/365) ** 30)
+
+## Step 3: Dictionary Organization Structure
+
+### Main Cost Dictionary:
+costs[depot_id][supplier_id][tier_id] = {
+    'coc_cash': COC_cash_total_cost_pl_pv,
+    'coc_30': COC_30_total_cost_pl_pv, 
+    'coc_45': COC_45_total_cost_pl_pv,
+    'coc_60': COC_60_total_cost_pl_pv,
+    'del_own': DEL_own_total_cost_pl_pv,
+    'del_buy': DEL_buy_total_cost_pl_pv,
+    'del_rent': DEL_rent_total_cost_pl_pv
+}
+
+### Supporting Dictionaries:
+depots[depot_id] = {
+    'annual_volume': depot_annual_volume,
+    'name': depot_name
+}
+
+suppliers[supplier_id] = {
+    'name': supplier_name,
+    'depots': [list of supplier depot IDs]
+}
+
+tiers[tier_id] = {
+    'name': tier_name,
+    'lower_bound': lower_volume,
+    'upper_bound': upper_volume  
+}
+
+## Step 4: Solver Integration
+
+### For CPLEX:
+- Iterate through costs dictionary to extract coefficient arrays
+- Create binary variables: C_cash_bin[i,j,k], C_30_bin[i,j,k], etc.
+- Objective: minimize sum(depot_volume[i] * costs[i][j][k][option] * binary_var[i][j][k][option])
+
+
+## Missing Data Handling (NULL = Option Not Available):
+
+### Core Principle: 
+**NULL rebate values indicate that supplier does NOT offer that specific option for that depot**
+- NULL COC_reb_pl_cash → COC cash option not available
+- NULL DEL_reb_pl_30 → DEL option not available  
+- NULL equipment costs → That equipment option not available
+
+### Implementation Strategy:
+```python
+# Create availability flags for each option
+df['coc_cash_available'] = df['COC_reb_pl_cash'].notna()
+df['coc_30_available'] = df['COC_reb_pl_30'].notna()
+df['coc_45_available'] = df['COC_reb_pl_45'].notna()
+df['coc_60_available'] = df['COC_reb_pl_60'].notna()
+df['del_available'] = df['DEL_reb_pl_30'].notna()
+df['del_own_equip_available'] = (df['DEL_reb_pl_30'].notna() & 
+                                df['equip_fin_pl_30'].notna() & 
+                                df['equip_main_pl_30'].notna())
+
+# Only calculate costs for available options
+costs[depot_id][supplier_id][tier_id] = {}
+
+if coc_cash_available:
+    costs[depot_id][supplier_id][tier_id]['coc_cash'] = COC_cash_total_cost_pl_pv
+if coc_30_available:
+    costs[depot_id][supplier_id][tier_id]['coc_30'] = COC_30_total_cost_pl_pv
+# ... only populate available options
+
+# Unavailable options are excluded from cost dictionary entirely
+```
+
+### Volume Tier Handling:
+**If supplier doesn't offer volume tiers 1,2 but offers 3,4,5,6:**
+- Depot requiring tier 1 pricing → Use tier 3 pricing (lowest available)  
+- Depot requiring tier 2 pricing → Use tier 3 pricing (lowest available)
+- **Business Logic**: Use closest higher tier when exact tier unavailable
+
+```python
+# Find available tiers for each supplier-depot combination
+available_tiers = df.groupby(['Supplier_FK', 'Customer_Depot_FK'])['Volume_Tier_FK'].apply(list)
+
+# For missing tiers, use next available higher tier
+def get_fallback_tier(requested_tier, available_tiers):
+    return min([t for t in available_tiers if t >= requested_tier], 
+               default=max(available_tiers))  # Use highest if no higher tier available
+```
+
+### Critical Data Validation:
+- **Distance data**: Must be available (required for transport costs)
+- **Fuel zone data**: Must match after cleaning (required for base pricing)
+- **Option availability**: Validate at least one option exists per supplier-depot combination
+
+### Optimization Constraint Impact:
+- Solver only considers available options (populated in cost dictionary)
+- Binary variables only created for available supplier-depot-tier-option combinations
+- **Feasibility check**: Ensure each depot has at least one available supplier option
+
+## Data Validation Checks:
+1. Verify SA fuel zones match after LTRIM transformation (e.g., '09A' → '9A')
+2. Validate international depots have countries mapped to international_fuel_prices
+3. Identify and handle NULL values as "option not available" (not missing data to fix)
+4. Validate PV calculations produce positive costs for available options only
+5. Ensure each depot has at least one available supplier-option combination
+6. Confirm volume tier fallback logic maintains business rules
+7. Verify distance and fuel zone data completeness (critical for cost calculations)
+
+## International Depot Handling:
+- **Identified International Locations**: 5 supplier depots
+  - Francistown & Gaborone (Botswana)
+  - Port of Matola (Mozambique) 
+  - Matsapha Depot (Eswatini)
+  - Walvis Bay (Namibia)
+- **Pricing Strategy**: User provides base fuel price per country in JSON config
+- **Transport Costs**: Only calculated for available COC services (distance-dependent)
+- **Rebate Applications**: Same rebate and volume tier structure applies
+- **Volume Tier Inclusion**: International depots can participate in volume tier calculations based on config scope_filters
+
+## Memory Usage Estimate:
+- Base DataFrame: ~2MB (2,042 OD pairs + joins)
+- Base cost calculations: ~1MB (7 cost types × available combinations)
+- Volume tier scenarios: ~3MB (multiple volume breakpoints per combination)
+- Dictionary structures: ~3MB (nested organization with volume scenarios)
+- Total: ~9MB in RAM (still very manageable)
+
+## Performance Expectations:
+- Data loading: ~150ms (more complex joins)
+- Base cost calculations: ~75ms (vectorized)
+- Volume tier computations: ~200ms (depends on scenario count)
+- Dictionary creation: ~300ms
+- Total precomputation time: <750ms per parameter change
+
+## Volume Tier Processing Complexity:
+- **Simple configs**: Fast processing (~100ms additional)
+- **Complex stacked tiers**: More computation required (~500ms additional)
+- **Multiple tier configs**: Linear scaling with config count
+- **Recommendation**: Cache volume scenario results for UI responsiveness
+
+

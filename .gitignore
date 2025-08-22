@@ -2,14 +2,19 @@
 venv/
 __pycache__/
 *.pyc
+*.db
 
 # IDE / Editor
 .vscode/
 .idea/
 *.swp
+.claude/
 
 # OS
 .DS_Store
 
 # Data
 Output Data/
+
+# Secrets
+google_places/Config.py

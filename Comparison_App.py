@@ -408,14 +408,26 @@ if any(key in st.session_state for key in ['results_nsga', 'results_econst', 're
     df_econst = st.session_state.get('results_econst', pd.DataFrame())
     df_hybrid = st.session_state.get('results_hybrid', pd.DataFrame())
     
-    # Combine all available results for plotting
+    # Combine all available results for plotting with proper indexing
     results_list = []
+    combined_index_map = {}  # Maps (method, original_index) -> combined_index
+    combined_idx = 0
+    
     if not df_nsga.empty:
         results_list.append(df_nsga)
+        for orig_idx in df_nsga.index:
+            combined_index_map[('NSGA-II', orig_idx)] = combined_idx
+            combined_idx += 1
     if not df_econst.empty:
         results_list.append(df_econst)
+        for orig_idx in df_econst.index:
+            combined_index_map[('ε-Constraint', orig_idx)] = combined_idx
+            combined_idx += 1
     if not df_hybrid.empty:
         results_list.append(df_hybrid)
+        for orig_idx in df_hybrid.index:
+            combined_index_map[('Hybrid', orig_idx)] = combined_idx
+            combined_idx += 1
     
     if results_list:
         df_combined = pd.concat(results_list, ignore_index=True)
@@ -431,6 +443,8 @@ if any(key in st.session_state for key in ['results_nsga', 'results_econst', 're
     fig = go.Figure()
     
     if not df_nsga.empty:
+        # Create customdata that maps to correct combined index
+        nsga_combined_indices = [combined_index_map[('NSGA-II', idx)] for idx in df_nsga.index]
         fig.add_trace(go.Scatter(
             x=df_nsga["cost"],
             y=df_nsga["score"],
@@ -438,7 +452,7 @@ if any(key in st.session_state for key in ['results_nsga', 'results_econst', 're
             name='NSGA-II',
             marker=dict(color='blue', size=10),
             text=df_nsga.index,
-            customdata=df_nsga.index,
+            customdata=nsga_combined_indices,
             hovertemplate=
             '<b>NSGA-II Solution %{text}</b><br>' +
             'Cost: R%{x:,.0f}<br>' +
@@ -448,6 +462,8 @@ if any(key in st.session_state for key in ['results_nsga', 'results_econst', 're
         ))
     
     if not df_econst.empty:
+        # Create customdata that maps to correct combined index
+        econst_combined_indices = [combined_index_map[('ε-Constraint', idx)] for idx in df_econst.index]
         fig.add_trace(go.Scatter(
             x=df_econst["cost"],
             y=df_econst["score"],
@@ -455,7 +471,7 @@ if any(key in st.session_state for key in ['results_nsga', 'results_econst', 're
             name='ε-Constraint',
             marker=dict(color='red', size=10),
             text=df_econst.index,
-            customdata=df_econst.index,
+            customdata=econst_combined_indices,
             hovertemplate=
             '<b>ε-Constraint Solution %{text}</b><br>' +
             'Cost: R%{x:,.0f}<br>' +
@@ -465,6 +481,8 @@ if any(key in st.session_state for key in ['results_nsga', 'results_econst', 're
         ))
         
     if not df_hybrid.empty:
+        # Create customdata that maps to correct combined index
+        hybrid_combined_indices = [combined_index_map[('Hybrid', idx)] for idx in df_hybrid.index]
         fig.add_trace(go.Scatter(
             x=df_hybrid["cost"],
             y=df_hybrid["score"],
@@ -472,7 +490,7 @@ if any(key in st.session_state for key in ['results_nsga', 'results_econst', 're
             name='Hybrid',
             marker=dict(color='green', size=10),
             text=df_hybrid.index,
-            customdata=df_hybrid.index,
+            customdata=hybrid_combined_indices,
             hovertemplate=
             '<b>Hybrid Solution %{text}</b><br>' +
             'Cost: R%{x:,.0f}<br>' +
@@ -789,10 +807,10 @@ if any(key in st.session_state for key in ['results_nsga', 'results_econst', 're
 
 
     # Welcome screen
-    st.info("👆 Use the sidebar to configure your data file and click **Initialize & Analyze Data** to get started!")
+    st.info("Use the sidebar to configure your data file and click **Initialize & Analyze Data** to get started!")
     
     st.markdown("""
-    ### 🎯 About This Comparison Optimizer
+    ### About This Comparison Optimizer
     
     This application compares **NSGA-II** and **ε-Constraint** methods for supply chain optimization with **selective NA handling**.
     

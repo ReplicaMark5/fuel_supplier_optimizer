@@ -1,0 +1,80 @@
+  Exact Calculations for Each Option
+
+  Input Values Used in All Calculations:
+
+  - rtl_wholesale_per_litre: Fuel price in R/litre (converted from cents/litre ÷100)
+  - COC_reb_pl_*: COC rebates in R/litre (from database)
+  - DEL_reb_pl_30: DEL rebate in R/litre (from database)
+  - equip_fin_pl_30: Equipment financing cost in R/litre (from database)
+  - equip_main_pl_30: Equipment maintenance cost in R/litre (from database)
+  - cost_owned_equip_pv: User's owned equipment cost in R/litre (0.05 from config)
+  - cost_buy_equip_pv: User's buy equipment cost in R/litre (0.08 from config)
+  - trans_cost_pl: Transport cost = (distance_km × 2 × R15.50/km) ÷ 30,000 litres
+  - PV factors: cash=1.0, net30=1.0103, net45=1.0155, net60=1.0208
+
+  ---
+  1. COC_CASH (Collection, Immediate Payment)
+
+  coc_cash_cost_pv = (fuel_price - coc_cash_rebate) + transport_cost
+  Example: (20.9057 - 0.0) - 0.1942 = 20.7115 R/litre
+
+  Business Logic: Pay cash immediately, get cash rebate, pay transport costs
+
+  ---
+  2. COC_30 (Collection, NET30 Payment Terms)
+
+  coc_30_cost_pv = ((fuel_price - coc_30_rebate) / pv_net30) + transport_cost
+  Example: ((20.9057 - 0.51) / 1.0103) - 0.1942 = 19.9931 R/litre
+
+  Business Logic: Pay after 30 days (PV benefit), get NET30 rebate, pay transport costs
+
+  ---
+  3. COC_45 (Collection, NET45 Payment Terms)
+
+  coc_45_cost_pv = ((fuel_price - coc_45_rebate) / pv_net45) + transport_cost
+  Example: ((20.9057 - 0.0) / 1.0155) - 0.1942 = 20.3918 R/litre
+
+  Business Logic: Pay after 45 days (larger PV benefit), get NET45 rebate, pay transport costs
+
+  ---
+  4. COC_60 (Collection, NET60 Payment Terms)
+
+  coc_60_cost_pv = ((fuel_price - coc_60_rebate) / pv_net60) + transport_cost
+  Example: ((20.9057 - 0.0) / 1.0208) - 0.1942 = 20.2864 R/litre
+
+  Business Logic: Pay after 60 days (largest PV benefit), get NET60 rebate, pay transport costs
+
+  ---
+  5. DEL_OWN (Delivery, Own Equipment)
+
+  del_own_cost_pv = ((fuel_price - (del_rebate + equip_financing + equip_maintenance)) / pv_net30) + user_owned_equipment_cost
+  Business Logic:
+  - Supplier delivers fuel (no transport costs)
+  - Get delivery rebate + equipment financing + equipment maintenance credits
+  - All supplier rebates are NET30 terms (PV discounted)
+  - Add user's own equipment operating cost (already in PV)
+
+  ---
+  6. DEL_BUY (Delivery, Buy Equipment)
+
+  del_buy_cost_pv = ((fuel_price - (del_rebate + equip_financing + equip_maintenance)) / pv_net30) + user_buy_equipment_cost
+  Business Logic: Same as DEL_OWN but user purchases new equipment instead
+
+  ---
+  7. DEL_RENT (Delivery, Rent Equipment)
+
+  del_rent_cost_pv = (fuel_price - del_rebate) / pv_net30
+  Business Logic:
+  - Supplier delivers fuel (no transport costs)
+  - Get only basic delivery rebate (NET30 terms, PV discounted)
+  - No equipment financing/maintenance (supplier handles)
+  - No additional user equipment costs
+
+  ---
+  Key Business Logic Observations:
+
+  1. COC Options: Customer collects → pays transport costs
+  2. DEL Options: Supplier delivers → no transport costs
+  3. Payment Terms: Only non-cash terms get PV discount benefit
+  4. Equipment Costs: DEL options may include supplier equipment credits + user equipment costs
+  5. Rebate Stacking: DEL own/buy stack delivery rebate + equipment financing + maintenance rebates

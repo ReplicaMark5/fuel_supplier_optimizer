@@ -1,0 +1,12 @@
+Do companies that don’t provide an equipment finance/ maintenance charge not offer equipment to lease? 
+yes 
+
+3.1. Which depots correspond to which volume tiers?
+manual assignment in UI 
+
+4.1. When a contract is agreed upon does it limit Unitrans to one payment term as well as only the COC or DEL option?
+No payments can change throughout contract (rebates will be allocated as it goes)
+COC and DEl stays fixed for that depot throughout the contract 
+
+
+

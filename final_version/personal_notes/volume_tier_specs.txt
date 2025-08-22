@@ -1,0 +1,57 @@
+*Breakpoints*
+Volume Tier Breakpoints = 10 000 000, 15 000 000, 20 000 000, 25 000 000 and 30 000 000
+
+*Payment Terms*
+All volume tier rebates are 30 day terms rebates. other payment terms are not available at these tiers only 30 
+
+*Volume Congigurations*
+
+**Supplier A**
+Supplier 1 uses the 20 000 000 volume tier for the COC transport options on supply depots 8, 7, 6, 5, 4, 3, 2, 1 with a volume tier logic of 'stacked' with base rebates 'override' and rebate of 0.52
+
+*Supplier C**
+Supplier 2 uses 15 000 000 volume tier for the COC transport options on supply depots 9, 10, 11, 13, 15, 17 with volume tier logic of 'stacked' with base rebates 'add' and rebate = 0.59
+Supplier 2 uses 15 000 000 volume tier for COC transport options on supply depot 14 with volume tier logic of 'stacked' and base rebate 'add' with rebate = 0.59
+Supplier 2 uses 15 000 000 volume tier for COC transport options on supply depot 20 with volume tier logic of 'stacked' and base rebate 'add' with rebate = 0.59
+Supplier 2 uses 15 000 000 volume tier for COC transport options on supply depot 18 with volume tier logic of 'stacked' and base rebate 'add' with rebate = 0.59
+Supplier 2 uses 15 000 000 volume tier for DEL transport options on all its supply depots with volume tier logic 'stacked' and base rebate 'add' with rebate = 0.5
+
+Supplier 2 uses 20 000 000 volume tier for the COC transport options on supply depots 9, 10, 11, 13, 15, 17 with volume tier logic of 'stacked' with base rebates 'add' and rebate = 0.60
+Supplier 2 uses 20 000 000 volume tier for COC transport options on supply depot 14 with volume tier logic of 'stacked' and base rebate 'add' with rebate = 0.60
+Supplier 2 uses 20 000 000 volume tier for COC transport options on supply depot 20 with volume tier logic of 'stacked' and base rebate 'add' with rebate = 0.60
+Supplier 2 uses 20 000 000 volume tier for COC transport options on supply depot 18 with volume tier logic of 'stacked' and base rebate 'add' with rebate = 0.60
+Supplier 2 uses 20 000 000 volume tier for DEL transport options on all its supply depots with volume tier logic 'stacked' and base rebate 'add' with rebate = 0.51
+
+Supplier 2 uses 25 000 000 volume tier for the COC transport options on supply depots 9, 10, 11, 13, 15, 17 with volume tier logic of 'stacked' with base rebates 'add' and rebate = 0.62
+Supplier 2 uses 25 000 000 volume tier for COC transport options on supply depot 14 with volume tier logic of 'stacked' and base rebate 'add' with rebate = 0.62
+Supplier 2 uses 25 000 000 volume tier for COC transport options on supply depot 20 with volume tier logic of 'stacked' and base rebate 'add' with rebate = 0.62
+Supplier 2 uses 25 000 000 volume tier for COC transport options on supply depot 18 with volume tier logic of 'stacked' and base rebate 'add' with rebate = 0.62
+Supplier 2 uses 25 000 000 volume tier for DEL transport options on all its supply depots with volume tier logic 'stacked' and base rebate 'add' with rebate = 0.53
+
+**Supplier 3** 
+No volume tier
+
+**Supplier 4** 
+No volume tier
+
+**Supplier 5** 
+No volume tier
+
+**Supplier 6** 
+No volume tier
+
+**Supplier I**
+Supplier 7 uses 10 000 000 volume tier for DEL transport options on all its supply depots with volume tier logic 'stacked' and base rebate 'override' with rebate = 0.51
+Supplier 7 uses 20 000 000 volume tier for DEL transport options on all its supply depots with volume tier logic 'stacked' and base rebate 'override' with rebate = 0.54
+Supplier 7 uses 30 000 000 volume tier for DEL transport options on all its supply depots with volume tier logic 'stacked' and base rebate 'override' with rebate = 0.56
+
+**Supplier 8** 
+No volume tier
+
+**Supplier 9** 
+No volume tier
+
+
+
+
+

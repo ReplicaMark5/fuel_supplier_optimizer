@@ -1,0 +1,95 @@
+***How Volume Tiers Work***
+
+Two main structures are real and widely used:
+
+Step-up / incremental (marginal litres get the higher rebate).
+→ This is the standard practice in global majors (Shell, BP, TotalEnergies, Chevron, etc.), not something I’ve made up.
+→ You’ll find this described in downstream fuel sales contracts, wholesale petroleum supply agreements, and even in Shell’s own published pricing models in some markets (they sometimes call them “volume incentive discounts”).
+
+Minimum commitment / all-units (must hit a threshold to qualify, or once you cross, all litres get the higher rebate).
+→ Common with refiners/regionals (Astron, Engen, Sasol in South Africa, Caltex in Asia, etc.).
+→ Often written into agreements as “rebate is subject to a minimum of X million litres uplifted per annum” or “if uplift exceeds Y, a rebate of Z shall apply to all litres”.
+
+COC and payment-term rebates are a separate, standard commercial lever:
+
+Collect vs. delivery = logistics saving.
+
+Cash vs. 30/45/60 = financing cost recovery.
+
+These rebates stack with (or are gated by) volume tiers in every petroleum supply agreement I’ve seen.
+
+So the logic I gave is not invented — it’s a synthesis of how actual supply agreements are structured.
+
+⚠️ What varies (and you must check in your contracts/data)
+
+Retroactivity: Some “step-up” tiers are incremental only; others are “all-units” once threshold is passed. Both are used in practice.
+
+Aggregation: Tiers may be per-product, per-depot, per-contract, or aggregated at account (all depots + all fuels).
+
+Eligibility vs. bonus: With some suppliers, the tier just unlocks the right to get your COC rebate; with others, the tier itself adds extra cents per litre.
+
+Clawbacks: If you don’t meet the minimum annual volume, some majors claw back the rebate retroactively at year-end.
+
+
+
+***JSON Schema***
+
+{
+  "version": "1.0",
+  "period": { "type": "monthly|quarterly|annual", "retroactive": true },
+  "aggregation": {
+    "level": "account|supplier|supplier_product|supplier_account_group",
+    "group_keys": ["supplier_id"], 
+    "include_dimensions": ["depot", "product", "mode", "term"]
+  },
+  "tiers": {
+    "logic": "stacked|all_units|eligibility",
+    "no_skipping": true,
+    "bands": [
+      { "min_volume": 0, "max_volume": 10000000, "rebate": 0.45 },
+      { "min_volume": 10000000, "max_volume": 20000000, "rebate": 0.50 },
+      { "min_volume": 20000000, "max_volume": null, "rebate": 0.52 }
+    ]
+  },
+  "combination_rule": {
+    "with_base_rebates": "add|override|gate|multiply",
+    "override_value": null,
+    "fallback_rebate": 0.00
+  },
+  "scope_filters": {
+    "suppliers": ["*"], 
+    "depots": ["*"],   
+    "products": ["Diesel 50ppm","Diesel 500ppm"],
+    "modes": ["COC","DEL"],
+    "terms": ["CASH","NET30","NET45","NET60"]
+  },
+  "operational_rules": {
+    "one_term_per_supplier_depot": false,
+    "one_mode_per_supplier_depot": false,
+    "ladder_monotonicity": true
+  },
+  "penalties": {
+    "shortfall": { "enabled": false, "per_litre": 0.0 },
+    "clawback": { "enabled": false, "to_rebate": 0.30 }
+  }
+}
+
+***Example***
+
+{
+  "version": "1.0",
+  "period": { "type": "annual", "retroactive": false },
+  "aggregation": { "level": "supplier", "group_keys": ["supplier_id"], "include_dimensions": ["depot","product","mode","term"] },
+  "tiers": {
+    "logic": "stacked",
+    "no_skipping": true,
+    "bands": [
+      { "min_volume": 0, "max_volume": 10000000, "rebate": 0.45 },
+      { "min_volume": 10000000, "max_volume": 20000000, "rebate": 0.50 },
+      { "min_volume": 20000000, "max_volume": null, "rebate": 0.52 }
+    ]
+  },
+  "combination_rule": { "with_base_rebates": "add" },
+  "scope_filters": { "suppliers": ["Shell","BP"], "depots": ["*"], "products": ["Diesel 50ppm"], "modes": ["COC","DEL"], "terms": ["CASH","NET30","NET45","NET60"] },
+  "operational_rules": { "one_term_per_supplier_depot": true, "ladder_monotonicity": true }
+}

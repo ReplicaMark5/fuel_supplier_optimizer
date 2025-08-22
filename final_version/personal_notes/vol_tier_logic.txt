@@ -1,0 +1,58 @@
+  COC Volume Tiers: Correct Logic (YOUR BUSINESS REALITY):
+
+  1. Suppliers offer volume tiers for specific groups of their supplier depots
+  2. Example: Supplier A says "If you buy 15M+ litres total from my Alrode, Witbank, and Rustenburg depots, you get 0.5R/litre extra or overide rebate on ALL
+  fuel from those depots"
+  3. Volume commitment = Sum of allocations TO those specific supplier depots
+  4. Any customer depot allocated to those supplier depots benefits from the rebate (if all the ones within that volume tier meet the required volume tier when combined together)
+  5. Precomputation: Calculate all potential costs assuming rebate COULD apply. 
+  (CRITICAL: For all supply depots, volume tier costs must be filled in for each of the volume break points.
+             For example at volume breakpoint 0 for each supply depot, the cost options per litre of fuel are COC_cash_total_cost_pl_pv;COC_30_total_cost_pl_pv; COC_45_total_cost_pl_pv; COC_60_total_cost_pl_pv; DEL_own_total_cost_pl_pv; DEL_buy_total_cost_pl_pv; DEL_rent_total_cost_pl_pv <--- these are basically the different costs that it would be per litre of fuel for the customer depending on if dlivery collection or which payment term or equipment agreement is selected.
+             For all the other volume breakpoints these costs need to be adjusted using the volume tier logic. this precomputation on all volume breakpoints is an architectural decision so that the optimizer can lookup the cost value corresponding to which ever tier is met. 
+             So essentially the precomputations per volume breakpoint need to match that of reality. 
+             For example if supplier 3 has no actuall volume tiers, then for each of the volume tier breakpoints, all the cost options per litre of fuel would be the exact same. 
+             whereas for supplier 1, if volume tier is at 20 000 000 then for the breakpoints bellow this, the 6 cost options would be the same from the break point 0litres all the way up till the ones bellow 20 000 000, then for the break points from 20 000 000 and upwards all those cost options would be the exact same values. 
+             Basically the precomputations must cover all volume scenarious so that the optimizer can just "select" the cost options for what over volume thats supplyd epot falls in.
+  )
+  6. Optimization: Solver decides which combination of allocations meet volume commitments. (if that leads to the cheapest combination of suppliers in the end)
+
+
+
+- Volume tiers are supplier depot groups (where fuel comes FROM)
+- Customer depots are just demand sources (where fuel goes TO)
+
+
+
+
+***SOLID NOTES***
+
+**Incremental/stacked + Add**
+
+Apply base rebate on every litre.
+Plus a tier component on the litres inside each tier block.
+No back-pay (paid as you go).
+
+*Incremental/stacked + Override*
+
+Ignore base rebate.
+Pay only the tier rate per block.
+No back-pay.
+
+*All-Units/retroactive + Add*
+
+Every litre earns base rebate + highest tier component reached.
+Back-pay the tier component delta on earlier litres when a higher tier is unlocked (settled monthly/quarterly/annual).
+
+*All-Units/retroactive + Override*
+Ignore base rebate.
+Every litre earns the highest tier rate reached.
+Back-pay the tier rate delta on earlier litres at settlement.
+
+
+
+
+Quick notes:
+
+“Incremental” ≡ “stacked” ≡ “prospective step-up” (same thing in practice).
+Only the all-units variants have retroactive true-up and timing/PV effects.
+Specify aggregation scope explicitly: "contract" (supplier-wide) or "per_depot".

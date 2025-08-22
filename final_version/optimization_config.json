@@ -1,0 +1,141 @@
+{
+  "basic_parameters": {
+    "fuel_type": "Diesel 0.005% sulfur",
+    "wacc_percent": 12.5,
+    "tanker_cost_per_km": 15.50,
+    "tanker_capacity": 30000,
+    "cost_owned_equip_pv": 0.05,
+    "cost_buy_equip_pv": 0.08,
+    "del_fee_per_ltr_per_km": 0.0002
+  },
+  
+  "present_value_settings": {
+    "base_rebate_terms": {
+      "COC_cash": 0,
+      "COC_30": 30,
+      "COC_45": 45, 
+      "COC_60": 60,
+      "DEL_30": 30
+    },
+    "volume_tier_rebate_terms": {
+      "payment_days": 30
+    },
+    "delivery_option_terms": {
+      "del_rebate_terms": "NET30",
+      "equipment_financing_terms": "NET30", 
+      "equipment_maintenance_terms": "NET30"
+    }
+  },
+  
+  "international_fuel_prices": {
+    "Botswana": 18.50,
+    "Namibia": 19.20,
+    "Mozambique": 17.80,
+    "Eswatini": 18.90
+  },
+  
+  "volume_tier_configurations": {
+    "supplier_A_coc_20M_tier": {
+      "suppliers": ["Supplier A"],
+      "supplier_depots": ["1", "2", "3", "4", "5", "6", "7", "8"],
+      "modes": ["COC"],
+      "combination_rule": "override",
+      "bands": [
+        {
+          "min_volume": 0,
+          "max_volume": 20000000,
+          "rebate": 0.00
+        },
+        {
+          "min_volume": 20000000,
+          "max_volume": null,
+          "rebate": 0.52
+        }
+      ]
+    },
+    "supplier_C_coc_volume_tiers": {
+      "suppliers": ["Supplier C"],
+      "supplier_depots": ["9", "10", "11", "13", "14", "15", "17", "18", "20"],
+      "modes": ["COC"],
+      "combination_rule": "add",
+      "bands": [
+        {
+          "min_volume": 0,
+          "max_volume": 15000000,
+          "rebate": 0.00
+        },
+        {
+          "min_volume": 15000000,
+          "max_volume": 20000000,
+          "rebate": 0.59
+        },
+        {
+          "min_volume": 20000000,
+          "max_volume": 25000000,
+          "rebate": 0.60
+        },
+        {
+          "min_volume": 25000000,
+          "max_volume": null,
+          "rebate": 0.62
+        }
+      ]
+    },
+    "supplier_C_del_volume_tiers": {
+      "suppliers": ["Supplier C"],
+      "supplier_depots": ["*"],
+      "modes": ["DEL"],
+      "combination_rule": "add",
+      "bands": [
+        {
+          "min_volume": 0,
+          "max_volume": 15000000,
+          "rebate": 0.00
+        },
+        {
+          "min_volume": 15000000,
+          "max_volume": 20000000,
+          "rebate": 0.50
+        },
+        {
+          "min_volume": 20000000,
+          "max_volume": 25000000,
+          "rebate": 0.51
+        },
+        {
+          "min_volume": 25000000,
+          "max_volume": null,
+          "rebate": 0.53
+        }
+      ]
+    },
+    "supplier_I_del_volume_tiers": {
+      "suppliers": ["Supplier I"],
+      "supplier_depots": ["*"],
+      "modes": ["DEL"],
+      "combination_rule": "override",
+      "bands": [
+        {
+          "min_volume": 0,
+          "max_volume": 10000000,
+          "rebate": 0.00
+        },
+        {
+          "min_volume": 10000000,
+          "max_volume": 20000000,
+          "rebate": 0.51
+        },
+        {
+          "min_volume": 20000000,
+          "max_volume": 30000000,
+          "rebate": 0.54
+        },
+        {
+          "min_volume": 30000000,
+          "max_volume": null,
+          "rebate": 0.56
+        }
+      ]
+    }
+  }
+}
