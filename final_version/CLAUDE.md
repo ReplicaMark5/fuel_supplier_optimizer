@@ -17,6 +17,8 @@ This is a thesis project developing a depot supplier allocation optimizer using 
 ├── precomputation.py          # Main implementation (Phases 1+2 complete)
 ├── optimization_config.json   # All configuration and volume tier definitions
 ├── fuel_data.db              # Reorganized database with clean schema
+├── query_costs.py            # Interactive cost analysis and debugging tool
+├── thesis_notes.md           # Methodology documentation for thesis writing
 ├── extractors/               # Data processing utilities
 │   ├── diesel_price_extractor.py
 │   └── excel_to_sqlite.py
@@ -24,7 +26,20 @@ This is a thesis project developing a depot supplier allocation optimizer using 
 │   ├── debug_costs.py
 │   ├── debug_validation_stats.py
 │   └── test_volume_tiers.py
-└── personal_notes/           # Development planning and technical design docs
+├── tools/                    # Additional utilities
+│   └── manual_cost_calculator.py
+├── personal_notes/           # Development planning and technical design docs
+│   ├── manual_crosscheck_calc.md
+│   ├── vol_tier_logic.txt
+│   ├── volume_tier_specs.txt
+│   ├── Optimizer.md
+│   ├── TODO.txt
+│   └── commands.txt
+└── delete/                   # Archived/backup files
+    ├── memory_log.md
+    ├── Precomputations.md
+    ├── precomputation_broken_backup.py
+    └── [various backup files]
 ```
 
 ## Important Instructions for Future Claude Instances
@@ -39,7 +54,7 @@ The thesis_notes.md file serves as:
 - Data processing decisions
 
 ### SOUTH AFRICAN CURRENCY
-- the financials of this optimizer, calcualtor uses Rands, the only value in cents is from the diesel_prices table when the rtl_wholesale values are used
+- the financials of this optimizer and calculator uses Rands, the only value in cents is from the diesel_prices table when the rtl_wholesale values are used
 - All rebate values etc are given in rands and all outputs must be in rands
 - In south africa 1R (Rand) = 100c (Cents)
 

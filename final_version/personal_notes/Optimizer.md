@@ -1,3 +1,14 @@
+**Binary decision variables(0 or 1):**
+
+C_cash_bin   \\collection with cash payment 
+C_30_bin      \\collection with 30days payment
+C_45_bin    
+C_60_bin      
+
+D_own_bin    \\Delivery with using own fuelling equipment 
+D_buy_bin  
+D_rent_bin
+
 **Coefficients**
 
 

@@ -1,0 +1,175 @@
+● Update Todos
+  ⎿  ☐ Define complete decision variable structure     
+     ☐ Design objective function with conditional costs
+     ☐ Formulate all constraint types needed
+     ☐ Create implementation architecture
+     ☐ Define data preparation requirements
+
+● Full CPLEX Implementation Plan
+
+  1. Decision Variables
+
+  # Base allocation variables (per customer depot i, supplier depot j)
+  C_cash_bin[i,j] ∈ {0,1}    # Collection with cash payment
+  C_30_bin[i,j] ∈ {0,1}      # Collection with NET30 payment  
+  C_45_bin[i,j] ∈ {0,1}      # Collection with NET45 payment
+  C_60_bin[i,j] ∈ {0,1}      # Collection with NET60 payment
+  D_own_bin[i,j] ∈ {0,1}     # Delivery with own equipment
+  D_buy_bin[i,j] ∈ {0,1}     # Delivery with bought equipment
+  D_rent_bin[i,j] ∈ {0,1}    # Delivery with rented equipment
+
+  # Volume tier activation variables (per tier configuration t)
+  VT_bin[t] ∈ {0,1}          # Volume tier t is active
+
+● Update Todos
+  ⎿  ☒ Define complete decision variable structure     
+     ☐ Design objective function with conditional costs
+     ☐ Formulate all constraint types needed
+     ☐ Create implementation architecture
+     ☐ Define data preparation requirements
+
+● 2. Objective Function (Minimize Total Cost)
+
+  minimize: sum(
+      customer_depot_volume[i] * (
+          # Base costs (when no applicable tier is active)
+          sum(
+              base_cost[i,j,option] * option_bin[i,j] * (1 - sum(VT_bin[t] for t in applicable_tiers[i,j,option]))
+              for all options, supplier_depots j
+          ) +
+
+          # Tier costs (when applicable tier is active)
+          sum(
+              tier_cost[i,j,t] * option_bin[i,j] * VT_bin[t]
+              for all applicable tiers t, supplier_depots j, matching options
+          )
+      )
+      for all customer_depots i
+  )
+
+● Update Todos
+  ⎿  ☒ Define complete decision variable structure     
+     ☒ Design objective function with conditional costs
+     ☐ Formulate all constraint types needed
+     ☐ Create implementation architecture
+     ☐ Define data preparation requirements
+
+● 3. Constraint Types
+
+  A. Depot Assignment (Each customer depot gets exactly one supplier)
+
+  # For each customer depot i:
+  sum(
+      C_cash_bin[i,j] + C_30_bin[i,j] + C_45_bin[i,j] + C_60_bin[i,j] +
+      D_own_bin[i,j] + D_buy_bin[i,j] + D_rent_bin[i,j]
+      for all available supplier_depots j
+  ) = 1
+
+  B. Option Availability (Only use available options)
+
+  # For each customer depot i, supplier depot j, option combination:
+  option_bin[i,j] = 0  if option not available for this combination
+
+  C. Volume Tier Activation
+
+  # For each tier configuration t:
+  sum(
+      customer_depot_volume[i] * option_bin[i,j]
+      for all customer_depots i
+      for all supplier_depots j in tier_participating_depots[t]
+      for all options matching tier_modes[t]
+  ) >= tier_threshold[t] * VT_bin[t]
+
+  D. Mutual Tier Exclusion (At most one tier per supplier per mode)
+
+  # For each supplier s, mode m combination:
+  sum(VT_bin[t] for all tiers t where supplier[t] == s and mode[t] == m) <= 1
+
+● Update Todos
+  ⎿  ☒ Define complete decision variable structure     
+     ☒ Design objective function with conditional costs
+     ☒ Formulate all constraint types needed
+     ☐ Create implementation architecture
+     ☐ Define data preparation requirements
+
+● 4. Implementation Architecture
+
+  Module Structure:
+
+  # Main optimizer class
+  class FuelDepotOptimizer:
+      def __init__(self, precomputed_data, config)
+      def setup_decision_variables()
+      def setup_objective_function()
+      def setup_constraints()
+      def solve_optimization()
+      def extract_results()
+
+  # Data preparation utilities
+  def prepare_cost_matrices(precomputed_data)
+  def build_tier_configuration_mappings(config)
+  def create_availability_matrices(precomputed_data)
+
+  Data Structures Needed:
+
+  # Cost coefficient matrices
+  base_costs[i][j][option] = cost_per_litre
+  tier_costs[i][j][t] = cost_per_litre
+
+  # Tier configuration mappings
+  tier_supplier_depots[t] = [list of participating supplier depot IDs]
+  tier_modes[t] = ["COC"] or ["DEL"]
+  tier_thresholds[t] = volume_threshold
+
+  # Availability matrices
+  available_options[i][j] = [list of valid options for customer i, supplier depot j]
+
+● Update Todos
+  ⎿  ☒ Define complete decision variable structure     
+     ☒ Design objective function with conditional costs
+     ☒ Formulate all constraint types needed
+     ☒ Create implementation architecture
+     ☐ Define data preparation requirements
+
+● 5. Data Preparation Requirements
+
+  Extract from Precomputed Data:
+
+  # Customer depot information
+  customer_depots = {depot_id: {'volume': annual_volume, 'name': name}}
+
+  # Base cost matrices (60 x 2011 x 7 options max)
+  base_costs = extract_base_costs_from_dict(precomputed_data['costs'])
+
+  # Tier cost matrices  
+  tier_costs = extract_tier_costs_from_dict(precomputed_data['costs'])
+
+  # Availability matrix
+  availability = build_availability_matrix(precomputed_data['costs'])
+
+  Parse Configuration:
+
+  # Volume tier definitions
+  tier_configs = parse_volume_tier_configs(config['volume_tier_configurations'])
+
+  # For each tier: extract participating depots, modes, thresholds
+  tier_mappings = build_tier_constraint_mappings(tier_configs)
+
+● Update Todos
+  ⎿  ☒ Define complete decision variable structure     
+     ☒ Design objective function with conditional costs
+     ☒ Formulate all constraint types needed
+     ☒ Create implementation architecture
+     ☒ Define data preparation requirements
+
+● Implementation Order:
+
+  1. Data Preparation Module - Transform precomputed dictionary into CPLEX-ready matrices
+  2. Variable Setup - Create 8,833+ binary decision variables
+  3. Constraint Generation - Build all 4 constraint types dynamically
+  4. Objective Function - Implement conditional cost logic with tier overrides
+  5. Solver Integration - Configure CPLEX parameters and solve
+  6. Results Extraction - Convert solution back to business-readable format
+
+  This plan handles your 60 customer depots, 2,011 depot-supplier combinations, 4 volume tier configurations, and 8,833 total cost options in a
+  complete binary integer programming model that automatically finds the cost-minimizing allocation while respecting volume tier thresholds.
