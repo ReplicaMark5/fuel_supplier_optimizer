@@ -54,8 +54,11 @@ class FuelDepotOptimizerDocplex:
         self.allocation_vars = {}  # [depot_id, supplier_depot_id, option] -> Variable
         self.tier_vars = {}        # [tier_name] -> Variable
         
-        # Option types
-        self.option_types = ['coc_cash', 'coc_30', 'coc_45', 'coc_60', 'del_own', 'del_buy', 'del_rent']
+        # Option types (base, RAC, and volume tier enhanced)
+        self.base_option_types = ['coc_cash', 'coc_30', 'coc_45', 'coc_60', 'del_own', 'del_buy', 'del_rent']
+        self.rac_option_types = ['rac_coc_cash', 'rac_coc_30', 'rac_coc_45', 'rac_coc_60', 'rac_del_own', 'rac_del_buy', 'rac_del_rent']
+        self.tier_option_types = []  # Will be populated dynamically from cost data
+        self.all_option_types = self.base_option_types + self.rac_option_types  # Tier options added dynamically
         
         # Load configuration
         self._load_configuration()
@@ -84,6 +87,9 @@ class FuelDepotOptimizerDocplex:
         # Extract cost matrices and availability
         costs_data = self.precomputed_data['costs']
         
+        # Discover tier option types from cost data
+        tier_options_discovered = set()
+        
         for depot_id, supplier_depots in costs_data.items():
             if depot_id not in self.cost_matrices:
                 self.cost_matrices[depot_id] = {}
@@ -91,13 +97,17 @@ class FuelDepotOptimizerDocplex:
                 self.tier_costs[depot_id] = {}
             
             for supplier_depot_id, depot_data in supplier_depots.items():
-                # Base costs
-                self.cost_matrices[depot_id][supplier_depot_id] = depot_data['base_costs'].copy()
-                self.availability_matrix[depot_id][supplier_depot_id] = depot_data.get('available_options', [])
+                # All costs are now at the same level (base + RAC + tier enhanced costs)
+                self.cost_matrices[depot_id][supplier_depot_id] = depot_data.copy()
                 
-                # Tier costs
-                if depot_data.get('tier_costs'):
-                    self.tier_costs[depot_id][supplier_depot_id] = depot_data['tier_costs']
+                # Extract available options from cost keys
+                available_options = list(depot_data.keys())
+                self.availability_matrix[depot_id][supplier_depot_id] = available_options
+                
+                # Discover tier options (options with 'tier_' in the name)
+                for option in available_options:
+                    if 'tier_' in option and ('coc_' in option or 'del_' in option):
+                        tier_options_discovered.add(option)
                 
                 # Supplier depot info
                 if supplier_depot_id not in self.supplier_depots:
@@ -107,8 +117,13 @@ class FuelDepotOptimizerDocplex:
                         'distance_km': depot_data.get('distance_km')
                     }
         
+        # Update tier option types and all option types
+        self.tier_option_types = sorted(list(tier_options_discovered))
+        self.all_option_types = self.base_option_types + self.rac_option_types + self.tier_option_types
+        
         total_combinations = sum(len(sd) for sd in self.cost_matrices.values())
         logger.info(f"Prepared {total_combinations} depot-supplier combinations")
+        logger.info(f"Discovered {len(self.tier_option_types)} volume tier enhanced cost options: {self.tier_option_types[:5]}...")
         return self
     
     def create_decision_variables(self):
@@ -121,7 +136,7 @@ class FuelDepotOptimizerDocplex:
             for supplier_depot_id in self.cost_matrices[depot_id]:
                 available_options = self.availability_matrix[depot_id][supplier_depot_id]
                 
-                for option_type in self.option_types:
+                for option_type in self.all_option_types:
                     if option_type in available_options:
                         var_name = f"alloc_{depot_id}_{supplier_depot_id}_{option_type}"
                         var = self.model.binary_var(name=var_name)
@@ -139,75 +154,45 @@ class FuelDepotOptimizerDocplex:
     
     def set_objective(self):
         """
-        Set simplified objective function using base costs only.
+        Set simplified objective function using all precomputed costs directly.
         
-        Volume tiers will be handled via cost penalties/rewards in constraints or post-processing.
-        This avoids the complex conditional logic that was causing calculation errors.
+        All cost options (base, RAC, and volume tier enhanced) are now precomputed 
+        and available in the cost matrix, so we can use them directly.
         """
-        logger.info("Setting up simplified base-cost objective function...")
+        logger.info("Setting up objective function with all precomputed costs...")
         
         objective_terms = []
         
         for (depot_id, supplier_depot_id, option_type), allocation_var in self.allocation_vars.items():
             # Validate data inputs
             depot_volume = self.customer_depots[depot_id]['annual_volume']
-            base_cost_per_litre = self.cost_matrices[depot_id][supplier_depot_id][option_type]
+            cost_per_litre = self.cost_matrices[depot_id][supplier_depot_id][option_type]
             
             # Check for invalid values
             if depot_volume is None or str(depot_volume).lower() in ['nan', 'inf', '-inf']:
                 logger.warning(f"Invalid depot volume for depot {depot_id}: {depot_volume}")
                 continue
                 
-            if base_cost_per_litre is None or str(base_cost_per_litre).lower() in ['nan', 'inf', '-inf']:
-                logger.warning(f"Invalid base cost for depot {depot_id}, supplier depot {supplier_depot_id}, option {option_type}: {base_cost_per_litre}")
+            if cost_per_litre is None or str(cost_per_litre).lower() in ['nan', 'inf', '-inf']:
+                logger.warning(f"Invalid cost for depot {depot_id}, supplier depot {supplier_depot_id}, option {option_type}: {cost_per_litre}")
                 continue
             
             try:
                 depot_volume = float(depot_volume)
-                base_cost_per_litre = float(base_cost_per_litre)
-                base_total_cost = depot_volume * base_cost_per_litre
+                cost_per_litre = float(cost_per_litre)
+                total_cost = depot_volume * cost_per_litre
             except (ValueError, TypeError) as e:
-                logger.warning(f"Error converting to float: depot_volume={depot_volume}, base_cost={base_cost_per_litre}, error={e}")
+                logger.warning(f"Error converting to float: depot_volume={depot_volume}, cost={cost_per_litre}, error={e}")
                 continue
             
-            # Use base cost in objective (tier savings handled by tier variables)
-            objective_terms.append(base_total_cost * allocation_var)
-        
-        # Add tier cost incentives: negative cost (savings) when tier is active
-        for tier_name, tier_var in self.tier_vars.items():
-            tier_config = self.tier_configurations[tier_name]
-            tier_supplier_depots = tier_config.get('supplier_depots', [])
-            tier_modes = tier_config.get('modes', [])
-            
-            # Calculate potential tier savings
-            tier_savings = 0
-            for depot_id in self.cost_matrices:
-                depot_volume = self.customer_depots[depot_id]['annual_volume']
-                
-                for supplier_depot_id in self.cost_matrices[depot_id]:
-                    # Check if this combination is applicable to the tier
-                    if tier_supplier_depots != ['*'] and str(supplier_depot_id) not in tier_supplier_depots:
-                        continue
-                    
-                    for option_type in self.option_types:
-                        if (depot_id, supplier_depot_id, option_type) in self.allocation_vars:
-                            option_mode = 'COC' if option_type.startswith('coc_') else 'DEL'
-                            if option_mode in tier_modes:
-                                base_cost = self.cost_matrices[depot_id][supplier_depot_id][option_type]
-                                tier_cost = self._get_tier_cost(depot_id, supplier_depot_id, tier_name, option_type)
-                                
-                                if tier_cost is not None and tier_cost < base_cost:
-                                    savings_per_litre = base_cost - tier_cost
-                                    # Add savings when both allocation and tier are active
-                                    allocation_var = self.allocation_vars[(depot_id, supplier_depot_id, option_type)]
-                                    savings_term = -savings_per_litre * depot_volume * allocation_var * tier_var
-                                    objective_terms.append(savings_term)
+            # Add cost term to objective (all costs are precomputed)
+            objective_terms.append(total_cost * allocation_var)
         
         # Set objective: minimize total cost
         objective_expr = self.model.sum(objective_terms)
         self.model.minimize(objective_expr)
         
-        logger.info(f"Base objective with tier incentives set with {len(objective_terms)} cost terms")
+        logger.info(f"Objective function set with {len(objective_terms)} cost terms")
         return self
     
     def add_constraints(self):
@@ -221,7 +206,7 @@ class FuelDepotOptimizerDocplex:
             depot_vars = []
             
             for supplier_depot_id in self.cost_matrices[depot_id]:
-                for option_type in self.option_types:
+                for option_type in self.all_option_types:
                     if (depot_id, supplier_depot_id, option_type) in self.allocation_vars:
                         depot_vars.append(self.allocation_vars[(depot_id, supplier_depot_id, option_type)])
             
@@ -233,56 +218,73 @@ class FuelDepotOptimizerDocplex:
                 )
                 constraint_count += 1
         
-        # Constraint 2: Volume tier activation thresholds
+        # Constraint 2: Volume tier logical constraints
+        # Simplified approach: tier options can only be used if the total volume for that tier is met
         for tier_name, tier_config in self.tier_configurations.items():
-            tier_var = self.tier_vars[tier_name]
             tier_supplier_depots = tier_config.get('supplier_depots', [])
-            tier_modes = tier_config.get('modes', [])
+            tier_suppliers = tier_config.get('suppliers', [])
+            tier_modes = tier_config.get('transport_modes', [])
+            is_rac_tier = tier_config.get('Rebate_adjustment_clause', False)
             
-            # Get volume threshold
+            # Get volume threshold for this tier
             tier_threshold = self._get_tier_threshold(tier_config)
             
-            if tier_threshold > 0:
-                # Collect participating allocation variables
-                participating_terms = []
+            if tier_threshold > 0 and not is_rac_tier:  # Skip RAC tiers for now, handle separately
+                # Find all tier option variables that belong to this tier
+                tier_option_vars = []
+                volume_contributing_vars = []
                 
                 for depot_id in self.cost_matrices:
                     depot_volume = self.customer_depots[depot_id]['annual_volume']
                     
                     for supplier_depot_id in self.cost_matrices[depot_id]:
-                        # Check if supplier depot participates
-                        if tier_supplier_depots != ['*'] and str(supplier_depot_id) not in tier_supplier_depots:
+                        # Check if this supplier depot participates in this tier
+                        supplier_name = self.supplier_depots.get(supplier_depot_id, {}).get('supplier_name', '')
+                        
+                        if (tier_suppliers != ['*'] and supplier_name not in tier_suppliers):
+                            continue
+                        if (tier_supplier_depots != ['*'] and str(supplier_depot_id) not in tier_supplier_depots):
                             continue
                         
-                        for option_type in self.option_types:
+                        for option_type in self.all_option_types:
                             if (depot_id, supplier_depot_id, option_type) in self.allocation_vars:
-                                # Check if option matches tier modes
-                                option_mode = 'COC' if option_type.startswith('coc_') else 'DEL'
-                                if option_mode in tier_modes:
-                                    var = self.allocation_vars[(depot_id, supplier_depot_id, option_type)]
-                                    participating_terms.append(depot_volume * var)
+                                var = self.allocation_vars[(depot_id, supplier_depot_id, option_type)]
+                                
+                                # Check if this option belongs to this tier
+                                if 'tier_' in option_type and self._option_belongs_to_tier(option_type, tier_name):
+                                    tier_option_vars.append(var)
+                                
+                                # Check if this option contributes to tier volume calculation
+                                option_mode = self._get_option_transport_mode(option_type)
+                                if (option_mode in tier_modes and 
+                                    'tier_' not in option_type and 
+                                    not option_type.startswith('rac_')):  # Only base options count for volume
+                                    volume_contributing_vars.append(depot_volume * var)
                 
-                if participating_terms:
-                    # Volume constraint: sum(volume * allocation) >= threshold * tier_var
-                    constraint_name = f"tier_threshold_{tier_name}"
+                if tier_option_vars and volume_contributing_vars:
+                    # Big M constraint: tier options can only be used if volume threshold is met
+                    big_M = len(tier_option_vars)  # Maximum number of tier options that can be selected
+                    
+                    # If total volume < threshold, then no tier options can be used
+                    # This is implemented as: sum(tier_options) <= big_M * (volume >= threshold)
+                    # Where (volume >= threshold) is modeled using an auxiliary binary variable
+                    
+                    tier_var = self.tier_vars[tier_name]
+                    
+                    # Constraint: If tier is not active, no tier options can be selected
                     self.model.add_constraint(
-                        self.model.sum(participating_terms) >= tier_threshold * tier_var,
-                        ctname=constraint_name
+                        self.model.sum(tier_option_vars) <= big_M * tier_var,
+                        ctname=f"tier_options_require_activation_{tier_name}"
                     )
                     constraint_count += 1
-        
-        # Constraint 3: At most one tier per supplier-mode combination
-        supplier_mode_groups = self._group_tiers_by_supplier_mode()
-        
-        for group_key, tier_list in supplier_mode_groups.items():
-            if len(tier_list) > 1:  # Only needed if multiple tiers compete
-                tier_vars_in_group = [self.tier_vars[tier_name] for tier_name in tier_list]
-                constraint_name = f"tier_exclusion_{group_key}"
-                self.model.add_constraint(
-                    self.model.sum(tier_vars_in_group) <= 1,
-                    ctname=constraint_name
-                )
-                constraint_count += 1
+                    
+                    # Constraint: Tier is active only if volume threshold is met
+                    total_volume = self.model.sum(volume_contributing_vars)
+                    self.model.add_constraint(
+                        total_volume >= tier_threshold * tier_var,
+                        ctname=f"tier_threshold_{tier_name}"
+                    )
+                    constraint_count += 1
         
         logger.info(f"Added {constraint_count} constraints")
         return self
@@ -290,9 +292,17 @@ class FuelDepotOptimizerDocplex:
     def _get_tier_threshold(self, tier_config: Dict[str, Any]) -> float:
         """Extract volume threshold from tier configuration."""
         bands = tier_config.get('bands', [])
-        for band in bands:
-            if band.get('rebate', 0) > 0:  # First band with positive rebate
-                return band.get('min_volume', 0)
+        
+        # For RAC tiers, the threshold is the second band (where commitment kicks in)
+        if tier_config.get('Rebate_adjustment_clause', False):
+            if len(bands) >= 2:
+                return bands[1].get('min_volume', 0)
+        else:
+            # For standard tiers, find first band with non-zero min_volume
+            for band in bands:
+                min_vol = band.get('min_volume', 0)
+                if min_vol > 0:
+                    return min_vol
         return 0
     
     def _group_tiers_by_supplier_mode(self) -> Dict[str, List[str]]:
@@ -311,6 +321,46 @@ class FuelDepotOptimizerDocplex:
                     groups[group_key].append(tier_name)
         
         return groups
+    
+    def _get_option_transport_mode(self, option_type: str) -> str:
+        """Extract transport mode from option type (handles both base and RAC options)."""
+        if 'coc' in option_type:
+            return 'COC'
+        elif 'del' in option_type:
+            return 'DEL'
+        else:
+            return 'UNKNOWN'
+    
+    def _option_belongs_to_tier(self, option_type: str, tier_name: str) -> bool:
+        """Check if a tier option belongs to a specific tier configuration."""
+        # Extract tier band from option name (e.g., "coc_30_tier_15M_to_20M" -> "15M_to_20M")
+        if 'tier_' not in option_type:
+            return False
+        
+        tier_part = option_type.split('tier_')[1]  # Get part after 'tier_'
+        
+        # Get tier configuration bands
+        tier_config = self.tier_configurations.get(tier_name, {})
+        bands = tier_config.get('bands', [])
+        
+        # Check if this tier part matches any band in the configuration
+        for band in bands:
+            min_vol = band.get('min_volume', 0)
+            max_vol = band.get('max_volume')
+            
+            # Convert band to expected tier name format
+            if min_vol > 0:
+                min_str = f"{min_vol//1000000}M" if min_vol >= 1000000 else str(min_vol)
+                if max_vol:
+                    max_str = f"{max_vol//1000000}M" if max_vol >= 1000000 else str(max_vol)
+                    expected_band = f"{min_str}_to_{max_str}"
+                else:
+                    expected_band = f"{min_str}_plus"
+                
+                if expected_band in tier_part:
+                    return True
+        
+        return False
     
     def _get_applicable_tiers_for_allocation(self, depot_id: int, supplier_depot_id: int, option_type: str) -> List[str]:
         """Get tiers that apply to a specific allocation."""
@@ -332,7 +382,7 @@ class FuelDepotOptimizerDocplex:
                 continue
             
             # Check mode match
-            tier_modes = tier_config.get('modes', [])
+            tier_modes = tier_config.get('transport_modes', tier_config.get('modes', []))
             option_mode = 'COC' if option_type.startswith('coc_') else 'DEL'
             if option_mode in tier_modes:
                 applicable_tiers.append(tier_name)
@@ -408,22 +458,24 @@ class FuelDepotOptimizerDocplex:
             if solution.get_value(var) > 0.5:  # Variable is selected
                 depot_volume = self.customer_depots[depot_id]['annual_volume']
                 
-                # Determine actual cost used (base or tier)
-                applicable_tiers = self._get_applicable_tiers_for_allocation(depot_id, supplier_depot_id, option_type)
-                actual_cost_per_litre = self.cost_matrices[depot_id][supplier_depot_id][option_type]  # Default to base
-                cost_type = "base"
+                # Get actual cost used (this is already the correct cost from precomputation)
+                actual_cost_per_litre = self.cost_matrices[depot_id][supplier_depot_id][option_type]
                 
-                # Check if any applicable tier is active
-                active_tier_for_this_allocation = None
-                for tier_name in applicable_tiers:
-                    if solution.get_value(self.tier_vars[tier_name]) > 0.5:
-                        # This tier is active, use tier cost
-                        tier_cost = self._get_tier_cost(depot_id, supplier_depot_id, tier_name, option_type)
-                        if tier_cost is not None:
-                            actual_cost_per_litre = tier_cost
-                            cost_type = f"tier_{tier_name}"
-                            active_tier_for_this_allocation = tier_name
-                        break
+                # Determine cost type based on option name
+                if 'tier_' in option_type:
+                    cost_type = "tier_enhanced"
+                    active_tier = self._extract_tier_from_option(option_type)
+                    base_option_type = self._get_base_option_from_tier(option_type)
+                    base_cost_per_litre = self.cost_matrices[depot_id][supplier_depot_id].get(base_option_type)
+                elif option_type.startswith('rac_'):
+                    cost_type = "rac_penalty"
+                    active_tier = None
+                    base_option_type = option_type.replace('rac_', '')
+                    base_cost_per_litre = self.cost_matrices[depot_id][supplier_depot_id].get(base_option_type)
+                else:
+                    cost_type = "base"
+                    active_tier = None
+                    base_cost_per_litre = actual_cost_per_litre
                 
                 total_depot_cost = depot_volume * actual_cost_per_litre
                 
@@ -438,13 +490,13 @@ class FuelDepotOptimizerDocplex:
                     'total_cost': total_depot_cost,
                     'distance_km': self.supplier_depots[supplier_depot_id]['distance_km'],
                     'cost_type': cost_type,
-                    'base_cost_per_litre': self.cost_matrices[depot_id][supplier_depot_id][option_type],
-                    'active_tier': active_tier_for_this_allocation
+                    'base_cost_per_litre': base_cost_per_litre,
+                    'active_tier': active_tier
                 }
                 allocations.append(allocation)
                 total_cost += total_depot_cost
         
-        # Extract active tiers
+        # Extract active tiers from tier variables
         active_tiers = []
         for tier_name, var in self.tier_vars.items():
             if solution.get_value(var) > 0.5:
@@ -454,12 +506,14 @@ class FuelDepotOptimizerDocplex:
         print(f"\n=== SOLUTION DEBUG ===")
         print(f"CPLEX objective value: R {solution.objective_value:,.2f}")
         print(f"Manual cost calculation: R {total_cost:,.2f}")
-        print(f"Active tiers: {active_tiers}")
+        print(f"Active tier variables: {active_tiers}")
         print(f"Sample allocations with costs:")
-        for i, alloc in enumerate(allocations[:3]):
-            print(f"  Depot {alloc['customer_depot_id']}: {alloc['annual_volume']:,.0f}L × R{alloc['cost_per_litre']:.4f}/L = R{alloc['total_cost']:,.2f} ({alloc['cost_type']})")
-            if alloc['cost_type'] != 'base':
-                print(f"    (Base would be: R{alloc['base_cost_per_litre']:.4f}/L)")
+        for i, alloc in enumerate(allocations[:5]):
+            savings_info = ""
+            if alloc['base_cost_per_litre'] and alloc['cost_per_litre'] != alloc['base_cost_per_litre']:
+                savings = alloc['base_cost_per_litre'] - alloc['cost_per_litre']
+                savings_info = f" (saves R{savings:.4f}/L vs base R{alloc['base_cost_per_litre']:.4f}/L)"
+            print(f"  Depot {alloc['customer_depot_id']}: {alloc['annual_volume']:,.0f}L × R{alloc['cost_per_litre']:.4f}/L = R{alloc['total_cost']:,.2f} ({alloc['cost_type']}){savings_info}")
         
         return {
             'total_allocations': len(allocations),
@@ -468,6 +522,18 @@ class FuelDepotOptimizerDocplex:
             'active_tiers': active_tiers,
             'tier_count': len(active_tiers)
         }
+    
+    def _extract_tier_from_option(self, option_type: str) -> str:
+        """Extract tier name from tier option (e.g., 'coc_30_tier_15M_to_20M' -> '15M_to_20M')."""
+        if 'tier_' in option_type:
+            return option_type.split('tier_')[1]
+        return None
+    
+    def _get_base_option_from_tier(self, tier_option: str) -> str:
+        """Get base option from tier option (e.g., 'coc_30_tier_15M_to_20M' -> 'coc_30')."""
+        if 'tier_' in tier_option:
+            return tier_option.split('_tier_')[0]
+        return tier_option
     
     def run_optimization(self) -> Dict[str, Any]:
         """Run complete optimization pipeline."""

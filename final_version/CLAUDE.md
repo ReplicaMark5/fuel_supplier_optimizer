@@ -19,27 +19,10 @@ This is a thesis project developing a depot supplier allocation optimizer using 
 ├── fuel_data.db              # Reorganized database with clean schema
 ├── query_costs.py            # Interactive cost analysis and debugging tool
 ├── thesis_notes.md           # Methodology documentation for thesis writing
-├── extractors/               # Data processing utilities
-│   ├── diesel_price_extractor.py
-│   └── excel_to_sqlite.py
 ├── test_debug/               # Testing and debugging scripts
 │   ├── debug_costs.py
 │   ├── debug_validation_stats.py
 │   └── test_volume_tiers.py
-├── tools/                    # Additional utilities
-│   └── manual_cost_calculator.py
-├── personal_notes/           # Development planning and technical design docs
-│   ├── manual_crosscheck_calc.md
-│   ├── vol_tier_logic.txt
-│   ├── volume_tier_specs.txt
-│   ├── Optimizer.md
-│   ├── TODO.txt
-│   └── commands.txt
-└── delete/                   # Archived/backup files
-    ├── memory_log.md
-    ├── Precomputations.md
-    ├── precomputation_broken_backup.py
-    └── [various backup files]
 ```
 
 ## Important Instructions for Future Claude Instances
@@ -126,5 +109,6 @@ Add new entries under appropriate sections:
 - **Clean separation**: COC vs DEL options with proper availability flags (NULL = not available)
 - **Volume tiers**: Moved from database to JSON configuration for flexibility
 - **Performance**: Optimized joins and indexing for <750ms total processing time
+
 
 Remember: This project documentation is for thesis writing purposes - maintain detailed, methodical records of all development steps.

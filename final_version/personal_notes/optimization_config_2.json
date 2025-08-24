@@ -35,7 +35,7 @@
   },
   
   "volume_tier_configurations": {
-    "supplier_A_rac_20M_tier": {
+    "supplier_A_coc_20M_tier": {
       "suppliers": ["Supplier A"],
       "supplier_depots": ["*"],
       "Rebate_adjustment_clause": true,
@@ -56,7 +56,7 @@
         }
       ]
     },
-    "supplier_C_volume_tiers": {
+    "supplier_C_coc_volume_tiers": {
       "suppliers": ["Supplier C"],
       "supplier_depots": ["*"],
       "Rebate_adjustment_clause": false,
@@ -89,12 +89,12 @@
         }
       ]
     },
-    "supplier_I_del_only_tiers": {
+    "supplier_I_del_volume_tiers": {
       "suppliers": ["Supplier I"],
       "supplier_depots": ["*"],
-      "transport_modes": ["DEL"], 
+      "transport_modes": [null, "DEL"], 
       "Rebate_adjustment_clause": false,
-      "combination_rule": "add",
+      "combination_rule": "override",
       "bands": [
         {
           "min_volume": 0,

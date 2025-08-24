@@ -102,6 +102,8 @@ class FuelOptimizationPrecomputation:
             do.DEL_reb_pl_30,
             do.equip_fin_pl_30,
             do.equip_main_pl_30,
+            do.COC_From_DEL,
+            do."TRANSPORT CHARGE / (SAVING) EXCL ZONE DIFF",
             
             -- Fuel pricing (matched by supplier depot fuel zone)
             dp.rtl_wholesale,
@@ -350,6 +352,249 @@ class FuelOptimizationPrecomputation:
         
         return df
     
+    def calculate_rac_costs(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculate Rebate Adjustment Clause (RAC) penalty costs.
+        
+        These are higher costs used when volume commitments aren't met.
+        Based on wholesale price without rebates + transport/equipment costs.
+        
+        Args:
+            df: Data with fuel pricing and base calculations
+            
+        Returns:
+            pd.DataFrame: Data with RAC cost calculations added
+        """
+        logger.info("Calculating RAC penalty costs...")
+        
+        pv_factors = self.calculate_present_value_factors()
+        cost_owned_equip_pv = self.config['basic_parameters']['cost_owned_equip_pv']
+        cost_buy_equip_pv = self.config['basic_parameters']['cost_buy_equip_pv']
+        del_fee_per_ltr_per_km = self.config['basic_parameters'].get('del_fee_per_ltr_per_km', 0.0002)
+        
+        # === RAC COC Calculations (no rebates, just wholesale + transport) ===
+        coc_mask = df['COC_Valid_FK'].notna()
+        
+        # RAC COC Cash (immediate payment)
+        df['rac_coc_cash_cost_pv'] = np.where(
+            coc_mask,
+            df['rtl_wholesale_per_litre'] + df['trans_cost_pl'],
+            np.nan
+        )
+        
+        # RAC COC NET30
+        df['rac_coc_30_cost_pv'] = np.where(
+            coc_mask,
+            (df['rtl_wholesale_per_litre'] / pv_factors['net30']) + df['trans_cost_pl'],
+            np.nan
+        )
+        
+        # RAC COC NET45
+        df['rac_coc_45_cost_pv'] = np.where(
+            coc_mask,
+            (df['rtl_wholesale_per_litre'] / pv_factors['net45']) + df['trans_cost_pl'],
+            np.nan
+        )
+        
+        # RAC COC NET60
+        df['rac_coc_60_cost_pv'] = np.where(
+            coc_mask,
+            (df['rtl_wholesale_per_litre'] / pv_factors['net60']) + df['trans_cost_pl'],
+            np.nan
+        )
+        
+        # === RAC DEL Calculations ===
+        # Need to back-calculate transport costs from delivery options
+        # Using formula: (COC_From_DEL - DEL_reb_pl_30)
+        del_mask = df['DEL_Valid_FK'].notna()
+        pv_30d = pv_factors['net30']
+        
+        # Get transport charge for RAC DEL calculations from delivery_options table
+        # This is the "TRANSPORT CHARGE / (SAVING) EXCL ZONE DIFF" field per updated specifications
+        transport_charge_excl_zone = np.where(
+            df['TRANSPORT CHARGE / (SAVING) EXCL ZONE DIFF'].notna(),
+            df['TRANSPORT CHARGE / (SAVING) EXCL ZONE DIFF'],
+            0  # Default to 0 if not available
+        )
+        
+        # RAC DEL Own Equipment
+        # Formula: ((wholesale + transport_charge) / PV_30) + owned_equip_cost
+        del_own_mask = (del_mask & 
+                       df['DEL_reb_pl_30'].notna() & 
+                       df['equip_fin_pl_30'].notna() & 
+                       df['equip_main_pl_30'].notna())
+        
+        df['rac_del_own_cost_pv'] = np.where(
+            del_own_mask,
+            ((df['rtl_wholesale_per_litre'] + transport_charge_excl_zone) / pv_30d) + cost_owned_equip_pv,
+            np.nan
+        )
+        
+        # RAC DEL Buy Equipment  
+        # Formula: ((wholesale + transport_charge) / PV_30) + buy_equip_cost
+        df['rac_del_buy_cost_pv'] = np.where(
+            del_own_mask,
+            ((df['rtl_wholesale_per_litre'] + transport_charge_excl_zone) / pv_30d) + cost_buy_equip_pv,
+            np.nan
+        )
+        
+        # RAC DEL Rent Equipment
+        # Formula: ((wholesale + transport_charge + equip_fin + equip_main) / PV_30)
+        df['rac_del_rent_cost_pv'] = np.where(
+            del_mask & df['DEL_reb_pl_30'].notna() & df['equip_fin_pl_30'].notna() & df['equip_main_pl_30'].notna(),
+            ((df['rtl_wholesale_per_litre'] + transport_charge_excl_zone + df['equip_fin_pl_30'] + df['equip_main_pl_30']) / pv_30d),
+            np.nan
+        )
+        
+        # Log RAC calculation results
+        rac_columns = ['rac_coc_cash_cost_pv', 'rac_coc_30_cost_pv', 'rac_coc_45_cost_pv', 'rac_coc_60_cost_pv',
+                       'rac_del_own_cost_pv', 'rac_del_buy_cost_pv', 'rac_del_rent_cost_pv']
+        
+        for col in rac_columns:
+            available_count = df[col].notna().sum()
+            logger.info(f"{col}: {available_count} RAC penalty calculations")
+        
+        return df
+    
+    def calculate_volume_tier_enhanced_costs(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculate volume tier enhanced costs for all configured volume tier scenarios.
+        
+        This implements the logic from manual_crosscheck_calc.md for combination_rule: "add"
+        where volume tier rebates are ADDED to base rebates for lower costs when tiers are met.
+        
+        Args:
+            df: Data with base and RAC cost calculations
+            
+        Returns:
+            pd.DataFrame: Data with volume tier enhanced cost calculations added
+        """
+        logger.info("Calculating volume tier enhanced costs...")
+        
+        pv_factors = self.calculate_present_value_factors()
+        cost_owned_equip_pv = self.config['basic_parameters']['cost_owned_equip_pv']
+        cost_buy_equip_pv = self.config['basic_parameters']['cost_buy_equip_pv']
+        del_fee_per_ltr_per_km = self.config['basic_parameters'].get('del_fee_per_ltr_per_km', 0.0002)
+        
+        # Load volume tier configurations
+        volume_tier_configs = self.config.get('volume_tier_configurations', {})
+        
+        tier_cost_count = 0
+        
+        for tier_name, tier_config in volume_tier_configs.items():
+            # Skip RAC tiers (they use RAC costs, not enhanced costs)
+            if tier_config.get('Rebate_adjustment_clause', False):
+                continue
+                
+            suppliers = tier_config.get('suppliers', [])
+            transport_modes = tier_config.get('transport_modes', [])
+            combination_rule = tier_config.get('combination_rule', 'add')
+            bands = tier_config.get('bands', [])
+            
+            logger.info(f"Processing tier {tier_name}: {len(bands)} bands, rule: {combination_rule}")
+            
+            # Process each volume tier band
+            for i, band in enumerate(bands):
+                min_volume = band.get('min_volume', 0)
+                max_volume = band.get('max_volume')
+                coc_rebate = band.get('coc_rebate', 0) or 0
+                del_rebate = band.get('del_rebate', 0) or 0
+                
+                # Skip bands with no rebates
+                if coc_rebate == 0 and del_rebate == 0:
+                    continue
+                
+                # Create tier band identifier
+                if max_volume is None:
+                    band_suffix = f"_{min_volume//1000000}M_plus"
+                else:
+                    band_suffix = f"_{min_volume//1000000}M_to_{max_volume//1000000}M"
+                
+                # Filter data for suppliers that have this tier
+                supplier_mask = df['supplier_name'].isin(suppliers)
+                
+                for _, row in df[supplier_mask].iterrows():
+                    # COC Volume Tier Enhanced Costs
+                    if 'COC' in transport_modes and coc_rebate > 0:
+                        coc_mask = pd.notna(row['COC_Valid_FK'])
+                        
+                        if coc_mask:
+                            # COC with combination_rule: "add" - add tier rebate to base rebate
+                            if combination_rule == 'add':
+                                # COC Cash (immediate payment) - only base rebate, no tier rebate for cash
+                                tier_col = f'coc_cash_tier{band_suffix}'
+                                if tier_col not in df.columns:
+                                    df[tier_col] = np.nan
+                                df.loc[df.index[_], tier_col] = (
+                                    row['rtl_wholesale_per_litre'] - row['COC_reb_pl_cash']
+                                ) + row['trans_cost_pl']
+                                
+                                # COC NET30 - base rebate + tier rebate
+                                tier_col = f'coc_30_tier{band_suffix}'
+                                if tier_col not in df.columns:
+                                    df[tier_col] = np.nan
+                                df.loc[df.index[_], tier_col] = (
+                                    (row['rtl_wholesale_per_litre'] - (row['COC_reb_pl_30'] + coc_rebate)) / pv_factors['net30']
+                                ) + row['trans_cost_pl']
+                                
+                                # COC NET45 - only base rebate (tier rebate is NET30 terms)
+                                tier_col = f'coc_45_tier{band_suffix}'  
+                                if tier_col not in df.columns:
+                                    df[tier_col] = np.nan
+                                df.loc[df.index[_], tier_col] = (
+                                    (row['rtl_wholesale_per_litre'] - row['COC_reb_pl_45']) / pv_factors['net45']
+                                ) + row['trans_cost_pl']
+                                
+                                # COC NET60 - only base rebate (tier rebate is NET30 terms)
+                                tier_col = f'coc_60_tier{band_suffix}'
+                                if tier_col not in df.columns:
+                                    df[tier_col] = np.nan
+                                df.loc[df.index[_], tier_col] = (
+                                    (row['rtl_wholesale_per_litre'] - row['COC_reb_pl_60']) / pv_factors['net60']
+                                ) + row['trans_cost_pl']
+                                
+                                tier_cost_count += 4
+                    
+                    # DEL Volume Tier Enhanced Costs
+                    if 'DEL' in transport_modes and del_rebate > 0:
+                        del_mask = pd.notna(row['DEL_Valid_FK'])
+                        
+                        if del_mask and pd.notna(row['DEL_reb_pl_30']):
+                            # DEL with combination_rule: "add" - add tier rebate to base rebate
+                            if combination_rule == 'add':
+                                # DEL Own Equipment
+                                if (pd.notna(row['equip_fin_pl_30']) and pd.notna(row['equip_main_pl_30'])):
+                                    tier_col = f'del_own_tier{band_suffix}'
+                                    if tier_col not in df.columns:
+                                        df[tier_col] = np.nan
+                                    df.loc[df.index[_], tier_col] = (
+                                        (row['rtl_wholesale_per_litre'] - 
+                                         (row['DEL_reb_pl_30'] + del_rebate + row['equip_fin_pl_30'] + row['equip_main_pl_30'])) / pv_factors['net30']
+                                    ) + (del_fee_per_ltr_per_km * row['One_Way_Dist']) + cost_owned_equip_pv
+                                
+                                # DEL Buy Equipment
+                                if (pd.notna(row['equip_fin_pl_30']) and pd.notna(row['equip_main_pl_30'])):
+                                    tier_col = f'del_buy_tier{band_suffix}'
+                                    if tier_col not in df.columns:
+                                        df[tier_col] = np.nan
+                                    df.loc[df.index[_], tier_col] = (
+                                        (row['rtl_wholesale_per_litre'] - 
+                                         (row['DEL_reb_pl_30'] + del_rebate + row['equip_fin_pl_30'] + row['equip_main_pl_30'])) / pv_factors['net30']
+                                    ) + (del_fee_per_ltr_per_km * row['One_Way_Dist']) + cost_buy_equip_pv
+                                
+                                # DEL Rent Equipment
+                                tier_col = f'del_rent_tier{band_suffix}'
+                                if tier_col not in df.columns:
+                                    df[tier_col] = np.nan
+                                df.loc[df.index[_], tier_col] = (
+                                    (row['rtl_wholesale_per_litre'] - (row['DEL_reb_pl_30'] + del_rebate)) / pv_factors['net30']
+                                ) + (del_fee_per_ltr_per_km * row['One_Way_Dist'])
+                                
+                                tier_cost_count += 3
+        
+        logger.info(f"Calculated {tier_cost_count} volume tier enhanced cost options")
+        return df
+    
     def build_cost_dictionary(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
         Build the base cost dictionary structure for optimizer consumption.
@@ -376,6 +621,26 @@ class FuelOptimizationPrecomputation:
             'del_rent': 'del_rent_cost_pv'
         }
         
+        # RAC (Rebate Adjustment Clause) penalty cost columns
+        rac_cost_columns = {
+            'rac_coc_cash': 'rac_coc_cash_cost_pv',
+            'rac_coc_30': 'rac_coc_30_cost_pv', 
+            'rac_coc_45': 'rac_coc_45_cost_pv',
+            'rac_coc_60': 'rac_coc_60_cost_pv',
+            'rac_del_own': 'rac_del_own_cost_pv',
+            'rac_del_buy': 'rac_del_buy_cost_pv', 
+            'rac_del_rent': 'rac_del_rent_cost_pv'
+        }
+        
+        # Volume tier enhanced cost columns (dynamically generated)
+        tier_cost_columns = {}
+        for col in df.columns:
+            if ('tier_' in col and 
+                ('coc_' in col or 'del_' in col) and 
+                not col.endswith('_cost_pv')):  # Already in right format
+                # Map column name to itself (e.g., 'coc_30_tier_15M_to_20M' -> 'coc_30_tier_15M_to_20M')
+                tier_cost_columns[col] = col
+        
         for _, row in df.iterrows():
             depot_id = row['Customer_Depot_FK']
             supplier_id = row['Supplier_FK']
@@ -395,10 +660,25 @@ class FuelOptimizationPrecomputation:
             if supplier_depot_id not in cost_dict[depot_id]:
                 cost_dict[depot_id][supplier_depot_id] = {}
             
-            # Add available cost options only
+            # Add available base cost options
             for option, cost_col in cost_columns.items():
                 if pd.notna(row[cost_col]):
                     cost_dict[depot_id][supplier_depot_id][option] = round(row[cost_col], 6)
+            
+            # Add available RAC penalty cost options
+            for option, cost_col in rac_cost_columns.items():
+                if pd.notna(row[cost_col]):
+                    cost_dict[depot_id][supplier_depot_id][option] = round(row[cost_col], 6)
+            
+            # Add available volume tier enhanced cost options
+            for option, cost_col in tier_cost_columns.items():
+                if pd.notna(row[cost_col]):
+                    cost_dict[depot_id][supplier_depot_id][option] = round(row[cost_col], 6)
+            
+            # Add supplier and distance metadata to each cost entry
+            cost_dict[depot_id][supplier_depot_id]['supplier_id'] = supplier_id
+            cost_dict[depot_id][supplier_depot_id]['supplier_name'] = row.get('supplier_name', f"Supplier {supplier_id}")
+            cost_dict[depot_id][supplier_depot_id]['distance_km'] = row.get('One_Way_Dist', None)
             
             # Build supporting dictionaries
             if depot_id not in depot_dict:
@@ -462,7 +742,13 @@ class FuelOptimizationPrecomputation:
         # Step 4: Calculate all base costs
         df = self.calculate_base_costs(df)
         
-        # Step 5: Build cost dictionary
+        # Step 5: Calculate RAC penalty costs
+        df = self.calculate_rac_costs(df)
+        
+        # Step 6: Calculate volume tier enhanced costs
+        df = self.calculate_volume_tier_enhanced_costs(df)
+        
+        # Step 7: Build cost dictionary
         cost_data = self.build_cost_dictionary(df)
         
         logger.info("Base precomputation completed successfully!")
@@ -940,17 +1226,11 @@ class FuelOptimizationPrecomputation:
         """
         logger.info("Starting complete precomputation pipeline with volume tiers...")
         
-        # Step 1: Run base precomputation
-        base_cost_data = self.run_base_precomputation()
-        
-        # Step 2: Get volume scenarios from config
-        # Individual tier configurations now provide all needed volume breakpoints
-        
-        # Step 3: Calculate tier costs for optimizer
-        enhanced_cost_data = self.calculate_tier_costs(base_cost_data)
+        # Run base precomputation (now includes volume tier enhanced costs)
+        complete_cost_data = self.run_base_precomputation()
         
         logger.info("Complete precomputation pipeline finished successfully!")
-        return enhanced_cost_data
+        return complete_cost_data
     def run_complete_precomputation_with_validation(self) -> Dict[str, Any]:
         """
         Execute complete precomputation with validation.
