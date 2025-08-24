@@ -286,6 +286,68 @@ class FuelDepotOptimizerDocplex:
                     )
                     constraint_count += 1
         
+        # Constraint 3: RAC tier constraints (different logic than regular volume tiers)
+        for tier_name, tier_config in self.tier_configurations.items():
+            is_rac_tier = tier_config.get('Rebate_adjustment_clause', False)
+            
+            if is_rac_tier:
+                tier_threshold = self._get_tier_threshold(tier_config)
+                tier_suppliers = tier_config.get('suppliers', [])
+                tier_modes = tier_config.get('transport_modes', [])
+                
+                if tier_threshold > 0:
+                    # RAC logic: if volume >= threshold, use base costs; if volume < threshold, use RAC costs
+                    # This is modeled as mutual exclusion between base and RAC options for the same supplier
+                    
+                    rac_option_vars = []
+                    base_option_vars = []
+                    volume_contributing_vars = []
+                    
+                    for depot_id in self.cost_matrices:
+                        depot_volume = self.customer_depots[depot_id]['annual_volume']
+                        
+                        for supplier_depot_id in self.cost_matrices[depot_id]:
+                            supplier_name = self.supplier_depots.get(supplier_depot_id, {}).get('supplier_name', '')
+                            
+                            # Check if this supplier participates in this RAC tier
+                            if (tier_suppliers != ['*'] and supplier_name not in tier_suppliers):
+                                continue
+                            
+                            for option_type in self.all_option_types:
+                                if (depot_id, supplier_depot_id, option_type) in self.allocation_vars:
+                                    var = self.allocation_vars[(depot_id, supplier_depot_id, option_type)]
+                                    option_mode = self._get_option_transport_mode(option_type)
+                                    
+                                    # Check if this option is in RAC tier modes
+                                    if option_mode in tier_modes:
+                                        if option_type.startswith('rac_'):
+                                            rac_option_vars.append(var)
+                                        elif 'tier_' not in option_type:  # Base options only
+                                            base_option_vars.append(var)
+                                            volume_contributing_vars.append(depot_volume * var)
+                    
+                    if rac_option_vars and base_option_vars and volume_contributing_vars:
+                        # RAC tier binary variable
+                        tier_var = self.tier_vars[tier_name]
+                        big_M = len(rac_option_vars + base_option_vars)
+                        
+                        # Constraint: If volume commitment is met (tier active), RAC options cannot be used
+                        self.model.add_constraint(
+                            self.model.sum(rac_option_vars) <= big_M * (1 - tier_var),
+                            ctname=f"rac_penalty_when_volume_not_met_{tier_name}"
+                        )
+                        constraint_count += 1
+                        
+                        # Constraint: Tier is active only if volume threshold is met
+                        total_volume = self.model.sum(volume_contributing_vars)
+                        self.model.add_constraint(
+                            total_volume >= tier_threshold * tier_var,
+                            ctname=f"rac_tier_threshold_{tier_name}"
+                        )
+                        constraint_count += 1
+                        
+                        logger.info(f"Added RAC tier constraints for {tier_name}: {len(rac_option_vars)} RAC options, {len(base_option_vars)} base options")
+        
         logger.info(f"Added {constraint_count} constraints")
         return self
     
@@ -507,13 +569,13 @@ class FuelDepotOptimizerDocplex:
         print(f"CPLEX objective value: R {solution.objective_value:,.2f}")
         print(f"Manual cost calculation: R {total_cost:,.2f}")
         print(f"Active tier variables: {active_tiers}")
-        print(f"Sample allocations with costs:")
-        for i, alloc in enumerate(allocations[:5]):
+        print(f"All allocations with costs:")
+        for i, alloc in enumerate(allocations):
             savings_info = ""
             if alloc['base_cost_per_litre'] and alloc['cost_per_litre'] != alloc['base_cost_per_litre']:
                 savings = alloc['base_cost_per_litre'] - alloc['cost_per_litre']
                 savings_info = f" (saves R{savings:.4f}/L vs base R{alloc['base_cost_per_litre']:.4f}/L)"
-            print(f"  Depot {alloc['customer_depot_id']}: {alloc['annual_volume']:,.0f}L × R{alloc['cost_per_litre']:.4f}/L = R{alloc['total_cost']:,.2f} ({alloc['cost_type']}){savings_info}")
+            print(f"  Depot {alloc['customer_depot_id']} → Supplier Depot {alloc['supplier_depot_id']} ({alloc['supplier_name']}): {alloc['annual_volume']:,.0f}L × R{alloc['cost_per_litre']:.4f}/L = R{alloc['total_cost']:,.2f} ({alloc['cost_type']}){savings_info}")
         
         return {
             'total_allocations': len(allocations),
@@ -600,10 +662,32 @@ def main():
             print(f"Activated Tiers: {', '.join(results['active_tiers'])}")
         else:
             print("No volume tiers activated")
+        
+        # Supplier summary
+        supplier_stats = {}
+        for allocation in results['allocations']:
+            supplier_name = allocation['supplier_name']
+            if supplier_name not in supplier_stats:
+                supplier_stats[supplier_name] = {
+                    'count': 0,
+                    'total_volume': 0,
+                    'total_cost': 0
+                }
+            supplier_stats[supplier_name]['count'] += 1
+            supplier_stats[supplier_name]['total_volume'] += allocation['annual_volume']
+            supplier_stats[supplier_name]['total_cost'] += allocation['total_cost']
+        
+        print(f"\n=== SUPPLIER UTILIZATION ===")
+        for supplier_name, stats in sorted(supplier_stats.items()):
+            print(f"{supplier_name}:")
+            print(f"  - Allocations: {stats['count']}")
+            print(f"  - Total Volume: {stats['total_volume']:,} L")
+            print(f"  - Total Cost: R {stats['total_cost']:,.2f}")
+            print(f"  - Avg Cost/L: R {stats['total_cost']/stats['total_volume']:.4f}")
             
-        print(f"\nSample Allocations:")
-        for i, allocation in enumerate(results['allocations'][:5]):
-            print(f"  {i+1}. Depot {allocation['customer_depot_id']} → Supplier Depot {allocation['supplier_depot_id']}")
+        print(f"\nAll Allocations:")
+        for i, allocation in enumerate(results['allocations']):
+            print(f"  {i+1}. Depot {allocation['customer_depot_id']} → Supplier Depot {allocation['supplier_depot_id']} ({allocation['supplier_name']})")
             print(f"     Option: {allocation['option_type']}, Volume: {allocation['annual_volume']:,} L")
             print(f"     Cost: R {allocation['cost_per_litre']:.4f}/L, Total: R {allocation['total_cost']:,.2f}")
     else:

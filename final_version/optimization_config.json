@@ -28,10 +28,10 @@
   },
   
   "international_fuel_prices": {
-    "Botswana": 18.50,
-    "Namibia": 19.20,
-    "Mozambique": 17.80,
-    "Eswatini": 18.90
+    "Botswana": 19.06,
+    "Namibia": 20.09,
+    "Mozambique": 22.25,
+    "Eswatini": 20.29
   },
   
   "volume_tier_configurations": {

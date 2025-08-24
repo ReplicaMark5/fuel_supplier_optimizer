@@ -19,11 +19,10 @@ RAC_DEL_own_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) + (TRANSPORT CHARGE 
 RAC_DEL_buy_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) + (TRANSPORT CHARGE / (SAVING) EXCL ZONE DIFF))/(1+WACC%/365)^30  + cost_pl_on_buy_equip_pv 
 RAC_DEL_rent_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) + (TRANSPORT CHARGE / (SAVING) EXCL ZONE DIFF + equip_fin_pl_30 + equip_main_pl_30))/(1+WACC%/365)^30 
 
-[TRANSPORT CHARGE / (SAVING) EXCL ZONE DIFF <----- find in the delivery_options table in the database]
 
 **Supplier C**
 
-Supplier 2 has 15 000 000, 20 000 000, and 25 000 000 volume tiers on all supplier depots with Rebate_adjustment_clause = False (this means that the supplier still keeps the base rebate and then the volume tier rebate is either added or overides it), this supplier has combination rule = add (because this is not a Rebate_adjustment_clause agreement, the del_rebate and or coc_rebate per volume tier is added to the base rebate if the supplier meets the required volume for that volume tier). This suppliers volume tiers are applicable across all transport modes (COC and DEL),  [          "min_volume": 0,
+Supplier 2 has 15 000 000, 20 000 000, and 25 000 000 volume tiers on all supplier depots with Rebate_adjustment_clause = False (this means that the cost per litre of fuel for this supplier is the base costs for if below the volume tiers and then for within volume tiers then the volume tier costs are used depending on whcih volume tier is used which are calculated in `precomputation.py`), this supplier has combination rule = add (because this is not a Rebate_adjustment_clause agreement, the del_rebate and or coc_rebate per volume tier is added to the base rebate if the supplier meets the required volume for that volume tier off which the costs for these scnarios are calculated in `precomputation.py` and then stored in the dictionary for the optimizer to use). This suppliers volume tiers are applicable across all transport modes (COC and DEL),  [          "min_volume": 0,
           "max_volume": 15000000,
           "del_rebate": 0.00,
           "coc_rebate": 0.00
@@ -44,7 +43,7 @@ Supplier 2 has 15 000 000, 20 000 000, and 25 000 000 volume tiers on all suppli
           "min_volume": 25000000,
           "max_volume": null,
           "del_rebate": 0.53,
-          "coc_rebate": 0.62 ] (this is the case as it is not a Rebate_adjustment_clause agreement and the volume tiers correspond to COC and DEL for this supplier so essentially if the volume is met for the contract as a whole then del_rebate is use for del options allocated and coc_rebate is used for COC options allocated)
+          "coc_rebate": 0.62 ] (this is the case as it is not a Rebate_adjustment_clause agreement and the volume tiers correspond to COC and DEL for this supplier so essentially if the volume is met for the contract as a whole then del_rebate is use for del options allocated and coc_rebate is used for COC options allocated. these rebate values are/must be used in the present value formulas in the `precomputation.py` to calcualte the base costs per litre for if volume tier is met for these scenarios. For example if a volume tier is met for supplier C then the optimizer must use that volume tiers costs per litre from the dictionary for the customer depot-supplier depot allocations, some can be the del costs per litre for that tier or some can be coc cost per litre for other allocations within that supplier, essentially the optimizer must just use the costs from the dictionary and the precomputations calculate the costs per litre for the difference scenarios)
 
 **Supplier 3** 
 No volume tier
@@ -60,7 +59,7 @@ No volume tier
 
 **Supplier I**
 
-Supplier 7 has 10 000 000, 20 000 000, 30 000 000 volume tiers on all supply depots with Rebate_adjustment_clause = False, this supplier has combination rule = add (because this is not a Rebate_adjustment_clause agreement, the del_rebate and or coc_rebate per volume tier is added to the base rebate if the supplier meets the required volume for that volume tier). This suppliers volume tiers are applicable across only transport mode DEL(so basically for this supplier all the volume uplifted using del options will determine if the volume tier is met and the coc options used wont determine if volume is met or not, for this supplier base rebates for coc will be used but for the del options base rebates or the volume tier rebates can be used depending on if the volume tier is met,  [         {
+Supplier 7 has 10 000 000, 20 000 000, 30 000 000 volume tiers on all supply depots with Rebate_adjustment_clause = False, this supplier has combination rule = add (because this is not a Rebate_adjustment_clause agreement, the del_rebate and or coc_rebate per volume tier is added to the base rebate if the supplier meets the required volume for that volume tier, the formulas to calculate these cost per litre values for scenarious are done in `precomputation.py`). This suppliers volume tiers are applicable across only transport mode DEL (so basically for this supplier all the volume uplifted using del options will determine if the volume tier is met and the coc options used wont determine if volume is met or not, for this supplier base rebates for coc allocations will be used but for the del options base rebates or the volume tier rebates can be used depending on if the volume tier is met, essentially only del allocations from this supplier will be used to calculate volume uplifted to trigger volume tier but for coc options it will just be the base coc options available),  [         {
           "min_volume": 0,
           "max_volume": 10000000,
           "del_rebate": 0.00,
@@ -83,7 +82,7 @@ Supplier 7 has 10 000 000, 20 000 000, 30 000 000 volume tiers on all supply dep
           "max_volume": null,
           "del_rebate": 0.56,
           "coc_rebate": null
-        } ] (this is the case as it is not a Rebate_adjustment_clause agreement and the volume tiers correspond to COC and DEL for this supplier so essentially if the volume is met using del allocations then del_rebate is used and if other allocations used coc from this supplier then the base costs must be used)
+        } ] (this is the case as it is not a Rebate_adjustment_clause agreement and the volume tiers correspond to COC and DEL for this supplier so essentially if the volume is met using del allocations then del_rebate is used for volume tier cost per litre calculations in `precomputation.py` and if other allocations use coc from this supplier then the base costs must be used)
 
 
 

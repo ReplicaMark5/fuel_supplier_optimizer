@@ -352,6 +352,31 @@ class FuelOptimizationPrecomputation:
         
         return df
     
+    def _get_rac_enabled_suppliers(self) -> List[int]:
+        """
+        Get list of supplier IDs that have Rebate Adjustment Clause enabled.
+        
+        Returns:
+            List[int]: Supplier IDs with RAC enabled
+        """
+        rac_supplier_ids = []
+        
+        volume_tier_configs = self.config.get('volume_tier_configurations', {})
+        
+        for tier_name, tier_config in volume_tier_configs.items():
+            if tier_config.get('Rebate_adjustment_clause', False):
+                tier_suppliers = tier_config.get('suppliers', [])
+                
+                # Convert supplier names to IDs
+                for supplier_name in tier_suppliers:
+                    for supplier_id, mapped_name in self.supplier_id_to_name.items():
+                        if mapped_name == supplier_name:
+                            if supplier_id not in rac_supplier_ids:
+                                rac_supplier_ids.append(supplier_id)
+        
+        logger.info(f"RAC enabled suppliers: {rac_supplier_ids} ({[self.supplier_id_to_name.get(sid, f'Unknown_{sid}') for sid in rac_supplier_ids]})")
+        return rac_supplier_ids
+    
     def calculate_rac_costs(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Calculate Rebate Adjustment Clause (RAC) penalty costs.
@@ -359,13 +384,27 @@ class FuelOptimizationPrecomputation:
         These are higher costs used when volume commitments aren't met.
         Based on wholesale price without rebates + transport/equipment costs.
         
+        Only calculated for suppliers with Rebate_adjustment_clause = True.
+        
         Args:
             df: Data with fuel pricing and base calculations
             
         Returns:
             pd.DataFrame: Data with RAC cost calculations added
         """
-        logger.info("Calculating RAC penalty costs...")
+        logger.info("Calculating RAC penalty costs for RAC-enabled suppliers only...")
+        
+        # Get suppliers that have RAC clauses enabled
+        rac_enabled_supplier_ids = self._get_rac_enabled_suppliers()
+        
+        if not rac_enabled_supplier_ids:
+            logger.info("No RAC-enabled suppliers found - skipping RAC calculations")
+            # Initialize RAC columns with NaN
+            rac_columns = ['rac_coc_cash_cost_pv', 'rac_coc_30_cost_pv', 'rac_coc_45_cost_pv', 'rac_coc_60_cost_pv',
+                          'rac_del_own_cost_pv', 'rac_del_buy_cost_pv', 'rac_del_rent_cost_pv']
+            for col in rac_columns:
+                df[col] = np.nan
+            return df
         
         pv_factors = self.calculate_present_value_factors()
         cost_owned_equip_pv = self.config['basic_parameters']['cost_owned_equip_pv']
@@ -373,32 +412,35 @@ class FuelOptimizationPrecomputation:
         del_fee_per_ltr_per_km = self.config['basic_parameters'].get('del_fee_per_ltr_per_km', 0.0002)
         
         # === RAC COC Calculations (no rebates, just wholesale + transport) ===
+        # Only calculate for RAC-enabled suppliers
         coc_mask = df['COC_Valid_FK'].notna()
+        rac_supplier_mask = df['Supplier_FK'].isin(rac_enabled_supplier_ids)
+        rac_coc_mask = coc_mask & rac_supplier_mask
         
         # RAC COC Cash (immediate payment)
         df['rac_coc_cash_cost_pv'] = np.where(
-            coc_mask,
+            rac_coc_mask,
             df['rtl_wholesale_per_litre'] + df['trans_cost_pl'],
             np.nan
         )
         
         # RAC COC NET30
         df['rac_coc_30_cost_pv'] = np.where(
-            coc_mask,
+            rac_coc_mask,
             (df['rtl_wholesale_per_litre'] / pv_factors['net30']) + df['trans_cost_pl'],
             np.nan
         )
         
         # RAC COC NET45
         df['rac_coc_45_cost_pv'] = np.where(
-            coc_mask,
+            rac_coc_mask,
             (df['rtl_wholesale_per_litre'] / pv_factors['net45']) + df['trans_cost_pl'],
             np.nan
         )
         
         # RAC COC NET60
         df['rac_coc_60_cost_pv'] = np.where(
-            coc_mask,
+            rac_coc_mask,
             (df['rtl_wholesale_per_litre'] / pv_factors['net60']) + df['trans_cost_pl'],
             np.nan
         )
@@ -407,6 +449,7 @@ class FuelOptimizationPrecomputation:
         # Need to back-calculate transport costs from delivery options
         # Using formula: (COC_From_DEL - DEL_reb_pl_30)
         del_mask = df['DEL_Valid_FK'].notna()
+        rac_del_mask = del_mask & rac_supplier_mask
         pv_30d = pv_factors['net30']
         
         # Get transport charge for RAC DEL calculations from delivery_options table
@@ -419,7 +462,7 @@ class FuelOptimizationPrecomputation:
         
         # RAC DEL Own Equipment
         # Formula: ((wholesale + transport_charge) / PV_30) + owned_equip_cost
-        del_own_mask = (del_mask & 
+        del_own_mask = (rac_del_mask & 
                        df['DEL_reb_pl_30'].notna() & 
                        df['equip_fin_pl_30'].notna() & 
                        df['equip_main_pl_30'].notna())
@@ -441,7 +484,7 @@ class FuelOptimizationPrecomputation:
         # RAC DEL Rent Equipment
         # Formula: ((wholesale + transport_charge + equip_fin + equip_main) / PV_30)
         df['rac_del_rent_cost_pv'] = np.where(
-            del_mask & df['DEL_reb_pl_30'].notna() & df['equip_fin_pl_30'].notna() & df['equip_main_pl_30'].notna(),
+            rac_del_mask & df['DEL_reb_pl_30'].notna() & df['equip_fin_pl_30'].notna() & df['equip_main_pl_30'].notna(),
             ((df['rtl_wholesale_per_litre'] + transport_charge_excl_zone + df['equip_fin_pl_30'] + df['equip_main_pl_30']) / pv_30d),
             np.nan
         )
@@ -678,6 +721,7 @@ class FuelOptimizationPrecomputation:
             # Add supplier and distance metadata to each cost entry
             cost_dict[depot_id][supplier_depot_id]['supplier_id'] = supplier_id
             cost_dict[depot_id][supplier_depot_id]['supplier_name'] = row.get('supplier_name', f"Supplier {supplier_id}")
+            cost_dict[depot_id][supplier_depot_id]['supplier_depot_name'] = row.get('Supply_Depot_Name', f"Depot {supplier_depot_id}")
             cost_dict[depot_id][supplier_depot_id]['distance_km'] = row.get('One_Way_Dist', None)
             
             # Build supporting dictionaries

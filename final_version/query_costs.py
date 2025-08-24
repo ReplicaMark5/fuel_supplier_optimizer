@@ -166,13 +166,14 @@ class CostQueryTool:
             print("="*60)
             print("1. Query specific depot-supplier depot pair")
             print("2. List all supplier depots for a customer depot")
-            print("3. Search for depots with volume tier costs")
-            print("4. Compare costs across suppliers for a depot")
-            print("5. Quit")
+            print("3. Browse by supplier → supplier depot → customer depot")
+            print("4. Search for depots with volume tier costs")
+            print("5. Compare costs across suppliers for a depot")
+            print("6. Quit")
             
-            choice = input("Select option (1-5): ").strip()
+            choice = input("Select option (1-6): ").strip()
             
-            if choice == '5' or choice.lower() in ['quit', 'q', 'exit']:
+            if choice == '6' or choice.lower() in ['quit', 'q', 'exit']:
                 print("👋 Goodbye!")
                 break
             elif choice == '1':
@@ -180,11 +181,13 @@ class CostQueryTool:
             elif choice == '2':
                 self.list_supplier_depots()
             elif choice == '3':
-                self.search_tier_costs()
+                self.browse_by_supplier()
             elif choice == '4':
+                self.search_tier_costs()
+            elif choice == '5':
                 self.compare_suppliers()
             else:
-                print("❌ Please select option 1-5")
+                print("❌ Please select option 1-6")
     
     def query_depot_supplier_pair(self):
         """Query specific depot-supplier depot pair."""
@@ -249,6 +252,133 @@ class CostQueryTool:
             tier_count = sum(1 for k in sd_data.keys() if 'tier_' in k)
             
             print(f"     {sd_id:3}: {supplier_name} ({distance} km) - {cost_count} options, {tier_count} tier costs")
+    
+    def browse_by_supplier(self):
+        """Browse costs by selecting supplier first, then supplier depot, then customer depot."""
+        print("\n🏢 SUPPLIER BROWSING MODE")
+        print("="*60)
+        
+        # Step 1: Get all suppliers with their depot counts
+        supplier_info = {}
+        for depot_id, supplier_depots in self.costs.items():
+            for sd_id, sd_data in supplier_depots.items():
+                supplier_name = sd_data.get('supplier_name', 'Unknown')
+                supplier_id = sd_data.get('supplier_id', 'Unknown')
+                
+                if supplier_name not in supplier_info:
+                    supplier_info[supplier_name] = {
+                        'supplier_id': supplier_id,
+                        'supplier_depot_ids': set(),
+                        'customer_depot_count': 0
+                    }
+                
+                supplier_info[supplier_name]['supplier_depot_ids'].add(sd_id)
+                supplier_info[supplier_name]['customer_depot_count'] += 1
+        
+        # Display suppliers
+        print(f"\n📋 Available Suppliers ({len(supplier_info)}):")
+        supplier_list = []
+        for i, (supplier_name, info) in enumerate(sorted(supplier_info.items()), 1):
+            supplier_depot_count = len(info['supplier_depot_ids'])
+            customer_depot_count = info['customer_depot_count']
+            print(f"  {i}. {supplier_name} ({supplier_depot_count} supplier depots, {customer_depot_count} customer connections)")
+            supplier_list.append(supplier_name)
+        
+        # Select supplier
+        try:
+            supplier_choice = input(f"\nSelect supplier (1-{len(supplier_list)}): ").strip()
+            supplier_index = int(supplier_choice) - 1
+            
+            if supplier_index < 0 or supplier_index >= len(supplier_list):
+                print("❌ Invalid supplier selection")
+                return
+                
+            selected_supplier = supplier_list[supplier_index]
+            print(f"\n✅ Selected: {selected_supplier}")
+            
+        except ValueError:
+            print("❌ Please enter a valid number")
+            return
+        
+        # Step 2: Get supplier depots for this supplier
+        supplier_depot_info = {}
+        for depot_id, supplier_depots in self.costs.items():
+            for sd_id, sd_data in supplier_depots.items():
+                if sd_data.get('supplier_name') == selected_supplier:
+                    if sd_id not in supplier_depot_info:
+                        supplier_depot_info[sd_id] = {
+                            'customer_depots': [],
+                            'depot_name': sd_data.get('supplier_depot_name', f'Depot {sd_id}')
+                        }
+                    supplier_depot_info[sd_id]['customer_depots'].append(depot_id)
+        
+        # Display supplier depots
+        print(f"\n🚛 Supplier Depots for {selected_supplier}:")
+        supplier_depot_list = []
+        for sd_id in sorted(supplier_depot_info.keys()):
+            info = supplier_depot_info[sd_id]
+            customer_count = len(info['customer_depots'])
+            depot_name = info['depot_name']
+            print(f"  {len(supplier_depot_list) + 1}. Supplier Depot {sd_id}: {depot_name} (serves {customer_count} customers)")
+            supplier_depot_list.append(sd_id)
+        
+        # Select supplier depot
+        try:
+            depot_choice = input(f"\nSelect supplier depot (1-{len(supplier_depot_list)}): ").strip()
+            depot_index = int(depot_choice) - 1
+            
+            if depot_index < 0 or depot_index >= len(supplier_depot_list):
+                print("❌ Invalid supplier depot selection")
+                return
+                
+            selected_supplier_depot = supplier_depot_list[depot_index]
+            print(f"\n✅ Selected: Supplier Depot {selected_supplier_depot}")
+            
+        except ValueError:
+            print("❌ Please enter a valid number")
+            return
+        
+        # Step 3: Show customer depots served by this supplier depot
+        customer_depot_options = []
+        for depot_id, supplier_depots in self.costs.items():
+            if selected_supplier_depot in supplier_depots:
+                if supplier_depots[selected_supplier_depot].get('supplier_name') == selected_supplier:
+                    depot_info = self.depots[depot_id]
+                    distance = supplier_depots[selected_supplier_depot].get('distance_km', 'N/A')
+                    customer_depot_options.append((depot_id, depot_info, distance))
+        
+        # Sort by depot ID
+        customer_depot_options.sort(key=lambda x: x[0])
+        
+        print(f"\n📦 Customer Depots served by {selected_supplier} Depot {selected_supplier_depot}:")
+        for i, (depot_id, depot_info, distance) in enumerate(customer_depot_options, 1):
+            volume_str = f"{depot_info['annual_volume']:,}" if depot_info['annual_volume'] else 'N/A'
+            print(f"  {i}. Depot {depot_id}: {depot_info['name']} ({volume_str} L/year, {distance} km)")
+        
+        # Select customer depot
+        try:
+            customer_choice = input(f"\nSelect customer depot (1-{len(customer_depot_options)}): ").strip()
+            customer_index = int(customer_choice) - 1
+            
+            if customer_index < 0 or customer_index >= len(customer_depot_options):
+                print("❌ Invalid customer depot selection")
+                return
+                
+            selected_customer_depot = customer_depot_options[customer_index][0]
+            depot_name = customer_depot_options[customer_index][1]['name']
+            print(f"\n✅ Selected: Customer Depot {selected_customer_depot} ({depot_name})")
+            
+        except ValueError:
+            print("❌ Please enter a valid number")
+            return
+        
+        # Step 4: Display the costs for this combination
+        print(f"\n🎯 Fetching costs for:")
+        print(f"   Supplier: {selected_supplier}")
+        print(f"   Supplier Depot: {selected_supplier_depot}")
+        print(f"   Customer Depot: {selected_customer_depot} ({depot_name})")
+        
+        self.get_costs_for_depot_supplier(selected_customer_depot, selected_supplier_depot)
     
     def search_tier_costs(self):
         """Search for depots with volume tier costs."""

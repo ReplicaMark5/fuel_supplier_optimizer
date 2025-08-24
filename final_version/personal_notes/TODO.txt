@@ -19,3 +19,10 @@ Could look at adding:
 
 
 **Check costs are calculated correctly for international depots
+
+
+CONSTRAINTS
+
+- Max supplier available capcity per supply depot or per supplier 
+- Max number of customer supplier contracts 
+- 
