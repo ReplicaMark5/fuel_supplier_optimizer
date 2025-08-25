@@ -7,12 +7,11 @@
     "cost_owned_equip_pv": 0.05,
     "cost_buy_equip_pv": 0.08
   },
-  
   "present_value_settings": {
     "base_rebate_terms": {
       "COC_cash": 0,
       "COC_30": 30,
-      "COC_45": 45, 
+      "COC_45": 45,
       "COC_60": 60,
       "DEL_30": 30
     },
@@ -21,133 +20,171 @@
     },
     "delivery_option_terms": {
       "del_rebate_terms": "NET30",
-      "equipment_financing_terms": "NET30", 
+      "equipment_financing_terms": "NET30",
       "equipment_maintenance_terms": "NET30"
     }
   },
-  
   "international_fuel_prices": {
     "Botswana": 22,
     "Namibia": 20.09,
-    "Mozambique": 22.25,
+    "Mozambique": 22,
     "Eswatini": 20.29
   },
-  
   "supplier_contract_configurations": {
-    "supplier_A_rac_commitment": {
+    "supplier_A_RAC": {
       "contract_type": "rebate_adjustment_clause",
       "suppliers": ["Supplier A"],
       "supplier_depots": ["*"],
       "transport_modes": ["COC", "DEL"],
-      "volume_calculation_modes": ["COC", "DEL"],
       "commitment_threshold": 20000000,
-      "penalty_structure": {
-        "below_threshold": "use_wholesale_rates",
-        "above_threshold": "use_negotiated_rates"
-      },
-      "description": "Use base costs if ≥20M volume, penalty costs if <20M"
+      "coc_rebate": null,
+      "del_rebate": null
     },
-    
-    "supplier_C_volume_rewards": {
+    "supplier_C_tiers": {
       "contract_type": "volume_tier_rewards",
       "suppliers": ["Supplier C"],
       "supplier_depots": ["*"],
       "transport_modes": ["COC", "DEL"],
       "volume_calculation_modes": ["COC", "DEL"],
-      "tier_structure": "incremental_bands",
       "rebate_combination": "additive_to_base",
       "reward_bands": [
         {
           "min_volume": 0,
           "max_volume": 15000000,
           "del_rebate": 0.00,
-          "coc_rebate": 0.00,
-          "description": "Base rates only - no additional rebates"
+          "coc_rebate": 0.00
         },
         {
           "min_volume": 15000000,
           "max_volume": 20000000,
           "del_rebate": 0.50,
-          "coc_rebate": 0.59,
-          "description": "First tier bonus rebates"
+          "coc_rebate": 0.59
         },
         {
           "min_volume": 20000000,
           "max_volume": 25000000,
           "del_rebate": 0.51,
-          "coc_rebate": 0.60,
-          "description": "Second tier bonus rebates"
+          "coc_rebate": 0.60
         },
         {
           "min_volume": 25000000,
           "max_volume": null,
           "del_rebate": 0.53,
-          "coc_rebate": 0.62,
-          "description": "Top tier bonus rebates"
+          "coc_rebate": 0.62
         }
       ]
     },
-    
-    "supplier_I_del_volume_rewards": {
-      "contract_type": "volume_tier_rewards", 
+    "supplier_I_DEL_tiers": {
+      "contract_type": "volume_tier_rewards",
       "suppliers": ["Supplier I"],
       "supplier_depots": ["*"],
       "transport_modes": ["DEL"],
       "volume_calculation_modes": ["DEL"],
-      "tier_structure": "incremental_bands",
       "rebate_combination": "override_base",
       "reward_bands": [
         {
           "min_volume": 0,
           "max_volume": 10000000,
           "del_rebate": 0.00,
-          "coc_rebate": null,
-          "description": "Base DEL rates, COC uses standard base rates"
+          "coc_rebate": null
         },
         {
           "min_volume": 10000000,
           "max_volume": 20000000,
           "del_rebate": 0.51,
-          "coc_rebate": null,
-          "description": "First tier DEL bonus rebates"
+          "coc_rebate": null
         },
         {
           "min_volume": 20000000,
           "max_volume": 30000000,
           "del_rebate": 0.54,
-          "coc_rebate": null,
-          "description": "Second tier DEL bonus rebates"
+          "coc_rebate": null
         },
         {
           "min_volume": 30000000,
           "max_volume": null,
           "del_rebate": 0.56,
-          "coc_rebate": null,
-          "description": "Top tier DEL bonus rebates"
+          "coc_rebate": null
         }
       ]
     }
   },
-  
   "supplier_depot_capacity_limits": {
     "description": "Maximum annual volume each supplier depot can supply (in litres). More realistic than supplier-level limits as it reflects terminal throughput constraints.",
-    
-    "1": 3500000, "2": 2800000, "3": 2500000, "4": 3200000, "5": 2900000, "6": 2200000, "7": 3100000, "8": 2600000, "54": 2100000,
-    
-    "9": 2800000, "10": 2600000, "11": 3500000, "12": 2400000, "13": 2900000, "14": 3200000, "15": 2100000, "16": 2300000, "17": 3400000, "18": 2700000, "19": 2200000, "20": 2500000,
-    
-    "21": 3200000, "22": 2900000, "23": 2800000, "24": 3100000, "25": 3200000,
-    
-    "26": 2600000, "27": 2400000, "28": 2800000, "29": 2200000, "30": 2500000, "31": 2700000, "32": 2300000, "33": 3000000, "34": 2400000, "35": 2800000, "36": 2600000, "37": 2200000, "38": 2500000, "39": 2300000, "40": 2700000, "41": 2400000,
-    
-    "42": 3400000, "43": 3200000, "44": 2800000, "45": 3100000, "46": 2900000, "47": 2600000, "48": 2700000,
-    
-    "49": 5500000, "50": 4800000, "51": 5200000,
-    
-    "52": 1900000, "53": 1700000, "55": 1800000, "56": 1600000, "57": 2000000, "58": 1850000, "59": 1750000, "60": 1900000, "61": 1650000, "62": 1800000, "63": 1700000,
-    
-    "64": 6500000, "65": 5500000,
-    
-    "66": 1500000, "67": 1400000, "68": 1300000, "69": 1600000, "70": 1450000, "71": 1350000, "72": 1550000, "73": 1250000, "74": 1400000, "75": 1300000
+    "1": 5250000,
+    "2": 4200000,
+    "3": 3750000,
+    "4": 4800000,
+    "5": 4350000,
+    "6": 3300000,
+    "7": 4650000,
+    "8": 3900000,
+    "54": 3150000,
+    "9": 4200000,
+    "10": 3900000,
+    "11": 5250000,
+    "12": 3600000,
+    "13": 4350000,
+    "14": 4800000,
+    "15": 3150000,
+    "16": 3450000,
+    "17": 5100000,
+    "18": 4050000,
+    "19": 3300000,
+    "20": 3750000,
+    "21": 4800000,
+    "22": 4350000,
+    "23": 4200000,
+    "24": 4650000,
+    "25": 4800000,
+    "26": 3900000,
+    "27": 3600000,
+    "28": 4200000,
+    "29": 3300000,
+    "30": 3750000,
+    "31": 4050000,
+    "32": 3450000,
+    "33": 4500000,
+    "34": 3600000,
+    "35": 4200000,
+    "36": 3900000,
+    "37": 3300000,
+    "38": 3750000,
+    "39": 3450000,
+    "40": 4050000,
+    "41": 3600000,
+    "42": 5100000,
+    "43": 4800000,
+    "44": 4200000,
+    "45": 4650000,
+    "46": 4350000,
+    "47": 3900000,
+    "48": 4050000,
+    "49": 8250000,
+    "50": 7200000,
+    "51": 12000000,
+    "52": 2850000,
+    "53": 2550000,
+    "55": 2700000,
+    "56": 2400000,
+    "57": 3000000,
+    "58": 2775000,
+    "59": 2625000,
+    "60": 2850000,
+    "61": 30000000,
+    "62": 2700000,
+    "63": 2550000,
+    "64": 12000000,
+    "65": 12000000,
+    "66": 2250000,
+    "67": 2100000,
+    "68": 1950000,
+    "69": 2400000,
+    "70": 2175000,
+    "71": 2025000,
+    "72": 2325000,
+    "73": 1875000,
+    "74": 2100000,
+    "75": 1950000
   }
 }

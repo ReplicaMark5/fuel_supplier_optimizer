@@ -612,12 +612,85 @@ class FuelDepotOptimizerDocplex:
             if solution.get_value(var) > 0.5:
                 active_tiers.append(tier_name)
         
+        # Calculate supplier depot capacity utilization
+        supplier_depot_utilization = {}
+        for allocation in allocations:
+            supplier_depot_id = allocation['supplier_depot_id']
+            volume = allocation['annual_volume']
+            
+            if supplier_depot_id not in supplier_depot_utilization:
+                supplier_depot_utilization[supplier_depot_id] = {
+                    'used_volume': 0,
+                    'capacity_limit': self.supplier_depot_capacity_limits.get(str(supplier_depot_id), 0),
+                    'supplier_name': allocation['supplier_name'],
+                    'depot_name': f"Supplier Depot {supplier_depot_id}"
+                }
+            
+            supplier_depot_utilization[supplier_depot_id]['used_volume'] += volume
+        
+        # Calculate utilization percentages and identify binding constraints
+        binding_constraints = []
+        near_capacity_constraints = []
+        
+        for supplier_depot_id, util_data in supplier_depot_utilization.items():
+            if util_data['capacity_limit'] > 0:  # Only process depots with defined capacity limits
+                utilization_pct = (util_data['used_volume'] / util_data['capacity_limit']) * 100
+                util_data['utilization_pct'] = utilization_pct
+                
+                # Consider binding if >= 99.5% utilized (accounting for numerical precision)
+                if utilization_pct >= 99.5:
+                    binding_constraints.append({
+                        'supplier_depot_id': supplier_depot_id,
+                        'supplier_name': util_data['supplier_name'],
+                        'depot_name': util_data['depot_name'],
+                        'used_volume': util_data['used_volume'],
+                        'capacity_limit': util_data['capacity_limit'],
+                        'utilization_pct': utilization_pct
+                    })
+                # Consider near capacity if >= 90% utilized
+                elif utilization_pct >= 90:
+                    near_capacity_constraints.append({
+                        'supplier_depot_id': supplier_depot_id,
+                        'supplier_name': util_data['supplier_name'],
+                        'depot_name': util_data['depot_name'],
+                        'used_volume': util_data['used_volume'],
+                        'capacity_limit': util_data['capacity_limit'],
+                        'utilization_pct': utilization_pct
+                    })
+        
         # Debug: print some allocation details
         print(f"\n=== SOLUTION DEBUG ===")
         print(f"CPLEX objective value: R {solution.objective_value:,.2f}")
         print(f"Manual cost calculation: R {total_cost:,.2f}")
         print(f"Active tier variables: {active_tiers}")
-        print(f"All allocations with costs:")
+        
+        # Print capacity utilization summary
+        print(f"\n=== SUPPLIER DEPOT CAPACITY UTILIZATION ===")
+        if binding_constraints:
+            print(f"🔴 BINDING CONSTRAINTS ({len(binding_constraints)} depots at capacity):")
+            for constraint in binding_constraints:
+                print(f"  Depot {constraint['supplier_depot_id']} ({constraint['supplier_name']}): {constraint['used_volume']:,.0f}L / {constraint['capacity_limit']:,.0f}L ({constraint['utilization_pct']:.1f}%)")
+        
+        if near_capacity_constraints:
+            print(f"🟡 NEAR CAPACITY ({len(near_capacity_constraints)} depots >90% utilized):")
+            for constraint in near_capacity_constraints:
+                print(f"  Depot {constraint['supplier_depot_id']} ({constraint['supplier_name']}): {constraint['used_volume']:,.0f}L / {constraint['capacity_limit']:,.0f}L ({constraint['utilization_pct']:.1f}%)")
+        
+        if not binding_constraints and not near_capacity_constraints:
+            print("✅ No capacity constraints reached (all depots <90% utilized)")
+        
+        # Print top 5 most utilized depots
+        sorted_utilization = sorted(
+            [(k, v) for k, v in supplier_depot_utilization.items() if v['capacity_limit'] > 0], 
+            key=lambda x: x[1]['utilization_pct'], 
+            reverse=True
+        )[:5]
+        
+        print(f"\n📊 TOP 5 MOST UTILIZED SUPPLIER DEPOTS:")
+        for depot_id, util_data in sorted_utilization:
+            print(f"  Depot {depot_id} ({util_data['supplier_name']}): {util_data['used_volume']:,.0f}L / {util_data['capacity_limit']:,.0f}L ({util_data['utilization_pct']:.1f}%)")
+        
+        print(f"\nAll allocations with costs:")
         for i, alloc in enumerate(allocations):
             savings_info = ""
             if alloc['base_cost_per_litre'] and alloc['cost_per_litre'] != alloc['base_cost_per_litre']:
@@ -630,7 +703,15 @@ class FuelDepotOptimizerDocplex:
             'total_annual_cost': total_cost,
             'allocations': allocations,
             'active_tiers': active_tiers,
-            'tier_count': len(active_tiers)
+            'tier_count': len(active_tiers),
+            'supplier_depot_utilization': supplier_depot_utilization,
+            'binding_capacity_constraints': binding_constraints,
+            'near_capacity_constraints': near_capacity_constraints,
+            'capacity_summary': {
+                'total_supplier_depots_used': len(supplier_depot_utilization),
+                'binding_constraints_count': len(binding_constraints),
+                'near_capacity_count': len(near_capacity_constraints)
+            }
         }
     
     def _extract_tier_from_option(self, option_type: str) -> str:
