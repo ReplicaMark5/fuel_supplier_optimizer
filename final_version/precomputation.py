@@ -37,11 +37,8 @@ class FuelOptimizationPrecomputation:
         self.raw_data = None
         self.base_costs = {}
         
-        # Supplier ID to name mapping (for volume tier filtering)
-        self.supplier_id_to_name = {
-            1: "Supplier A", 2: "Supplier C", 3: "Supplier D", 4: "Supplier F", 5: "Supplier G", 
-            6: "Supplier H", 7: "Supplier I", 8: "Supplier J", 9: "Supplier L"
-        }
+        # Supplier ID to name mapping (loaded dynamically from database)
+        self.supplier_id_to_name = self._load_supplier_mapping()
         
         # Cache PV factors to avoid redundant calculations
         self._cached_pv_factors = None
@@ -57,6 +54,28 @@ class FuelOptimizationPrecomputation:
             raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in configuration file: {e}")
+    
+    def _load_supplier_mapping(self) -> Dict[int, str]:
+        """Load supplier ID to name mapping dynamically from database."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT Supplier_PK, Supplier_Name_ FROM suppliers ORDER BY Supplier_PK")
+                supplier_data = cursor.fetchall()
+            
+            # Convert to dictionary
+            supplier_mapping = {int(supplier_id): supplier_name for supplier_id, supplier_name in supplier_data}
+            logger.info(f"Loaded {len(supplier_mapping)} suppliers from database: {list(supplier_mapping.values())}")
+            return supplier_mapping
+            
+        except sqlite3.Error as e:
+            logger.error(f"Failed to load supplier mapping from database: {e}")
+            # Fallback to hardcoded mapping if database fails
+            logger.warning("Using fallback hardcoded supplier mapping")
+            return {
+                1: "Supplier A", 2: "Supplier C", 3: "Supplier D", 4: "Supplier F", 5: "Supplier G", 
+                6: "Supplier H", 7: "Supplier I", 8: "Supplier J", 9: "Supplier L"
+            }
     
     def load_data_from_database(self) -> pd.DataFrame:
         """
@@ -308,10 +327,8 @@ class FuelOptimizationPrecomputation:
         del_mask = df['DEL_Valid_FK'].notna()
         pv_30d = pv_factors['net30']
         
-        # Get delivery cost parameters
-        del_fee_per_ltr_per_km = self.config['basic_parameters'].get('del_fee_per_ltr_per_km', 0.0002)
         
-        # DEL Own Equipment - includes delivery cost per manual formula
+        # DEL Own Equipment
         del_own_mask = (del_mask & 
                        df['DEL_reb_pl_30'].notna() & 
                        df['equip_fin_pl_30'].notna() & 
@@ -321,24 +338,23 @@ class FuelOptimizationPrecomputation:
             del_own_mask,
             ((df['rtl_wholesale_per_litre'] - 
               (df['DEL_reb_pl_30'] + df['equip_fin_pl_30'] + df['equip_main_pl_30'])) / pv_30d) + 
-             (del_fee_per_ltr_per_km * df['One_Way_Dist']) + cost_owned_equip_pv,
+             cost_owned_equip_pv,
             np.nan
         )
         
-        # DEL Buy Equipment - includes delivery cost per manual formula
+        # DEL Buy Equipment
         df['del_buy_cost_pv'] = np.where(
             del_own_mask,  # Same availability as own equipment
             ((df['rtl_wholesale_per_litre'] - 
               (df['DEL_reb_pl_30'] + df['equip_fin_pl_30'] + df['equip_main_pl_30'])) / pv_30d) + 
-             (del_fee_per_ltr_per_km * df['One_Way_Dist']) + cost_buy_equip_pv,
+             cost_buy_equip_pv,
             np.nan
         )
         
-        # DEL Rent Equipment - includes delivery cost per manual formula (no equipment financing/maintenance)
+        # DEL Rent Equipment (no equipment financing/maintenance)
         df['del_rent_cost_pv'] = np.where(
             del_mask & df['DEL_reb_pl_30'].notna(),
-            ((df['rtl_wholesale_per_litre'] - df['DEL_reb_pl_30']) / pv_30d) + 
-            (del_fee_per_ltr_per_km * df['One_Way_Dist']),
+            ((df['rtl_wholesale_per_litre'] - df['DEL_reb_pl_30']) / pv_30d),
             np.nan
         )
         
@@ -361,14 +377,14 @@ class FuelOptimizationPrecomputation:
         """
         rac_supplier_ids = []
         
-        volume_tier_configs = self.config.get('volume_tier_configurations', {})
+        contract_configs = self.config.get('supplier_contract_configurations', {})
         
-        for tier_name, tier_config in volume_tier_configs.items():
-            if tier_config.get('Rebate_adjustment_clause', False):
-                tier_suppliers = tier_config.get('suppliers', [])
+        for contract_name, contract_config in contract_configs.items():
+            if contract_config.get('contract_type') == 'rebate_adjustment_clause':
+                contract_suppliers = contract_config.get('suppliers', [])
                 
                 # Convert supplier names to IDs
-                for supplier_name in tier_suppliers:
+                for supplier_name in contract_suppliers:
                     for supplier_id, mapped_name in self.supplier_id_to_name.items():
                         if mapped_name == supplier_name:
                             if supplier_id not in rac_supplier_ids:
@@ -409,7 +425,6 @@ class FuelOptimizationPrecomputation:
         pv_factors = self.calculate_present_value_factors()
         cost_owned_equip_pv = self.config['basic_parameters']['cost_owned_equip_pv']
         cost_buy_equip_pv = self.config['basic_parameters']['cost_buy_equip_pv']
-        del_fee_per_ltr_per_km = self.config['basic_parameters'].get('del_fee_per_ltr_per_km', 0.0002)
         
         # === RAC COC Calculations (no rebates, just wholesale + transport) ===
         # Only calculate for RAC-enabled suppliers
@@ -517,27 +532,30 @@ class FuelOptimizationPrecomputation:
         pv_factors = self.calculate_present_value_factors()
         cost_owned_equip_pv = self.config['basic_parameters']['cost_owned_equip_pv']
         cost_buy_equip_pv = self.config['basic_parameters']['cost_buy_equip_pv']
-        del_fee_per_ltr_per_km = self.config['basic_parameters'].get('del_fee_per_ltr_per_km', 0.0002)
         
-        # Load volume tier configurations
-        volume_tier_configs = self.config.get('volume_tier_configurations', {})
+        # Load supplier contract configurations
+        contract_configs = self.config.get('supplier_contract_configurations', {})
         
         tier_cost_count = 0
         
-        for tier_name, tier_config in volume_tier_configs.items():
-            # Skip RAC tiers (they use RAC costs, not enhanced costs)
-            if tier_config.get('Rebate_adjustment_clause', False):
+        for contract_name, contract_config in contract_configs.items():
+            # Skip RAC contracts (they use RAC costs, not enhanced costs)
+            if contract_config.get('contract_type') == 'rebate_adjustment_clause':
+                continue
+            
+            # Only process volume tier reward contracts
+            if contract_config.get('contract_type') != 'volume_tier_rewards':
                 continue
                 
-            suppliers = tier_config.get('suppliers', [])
-            transport_modes = tier_config.get('transport_modes', [])
-            combination_rule = tier_config.get('combination_rule', 'add')
-            bands = tier_config.get('bands', [])
+            suppliers = contract_config.get('suppliers', [])
+            transport_modes = contract_config.get('transport_modes', [])
+            rebate_combination = contract_config.get('rebate_combination', 'additive_to_base')
+            reward_bands = contract_config.get('reward_bands', [])
             
-            logger.info(f"Processing tier {tier_name}: {len(bands)} bands, rule: {combination_rule}")
+            logger.info(f"Processing contract {contract_name}: {len(reward_bands)} reward bands, combination: {rebate_combination}")
             
-            # Process each volume tier band
-            for i, band in enumerate(bands):
+            # Process each volume tier reward band
+            for i, band in enumerate(reward_bands):
                 min_volume = band.get('min_volume', 0)
                 max_volume = band.get('max_volume')
                 coc_rebate = band.get('coc_rebate', 0) or 0
@@ -562,8 +580,8 @@ class FuelOptimizationPrecomputation:
                         coc_mask = pd.notna(row['COC_Valid_FK'])
                         
                         if coc_mask:
-                            # COC with combination_rule: "add" - add tier rebate to base rebate
-                            if combination_rule == 'add':
+                            # COC with rebate_combination: "additive_to_base" - add tier rebate to base rebate
+                            if rebate_combination == 'additive_to_base':
                                 # COC Cash (immediate payment) - only base rebate, no tier rebate for cash
                                 tier_col = f'coc_cash_tier{band_suffix}'
                                 if tier_col not in df.columns:
@@ -603,8 +621,8 @@ class FuelOptimizationPrecomputation:
                         del_mask = pd.notna(row['DEL_Valid_FK'])
                         
                         if del_mask and pd.notna(row['DEL_reb_pl_30']):
-                            # DEL with combination_rule: "add" - add tier rebate to base rebate
-                            if combination_rule == 'add':
+                            # DEL with rebate_combination: "additive_to_base" - add tier rebate to base rebate
+                            if rebate_combination == 'additive_to_base':
                                 # DEL Own Equipment
                                 if (pd.notna(row['equip_fin_pl_30']) and pd.notna(row['equip_main_pl_30'])):
                                     tier_col = f'del_own_tier{band_suffix}'
@@ -613,7 +631,7 @@ class FuelOptimizationPrecomputation:
                                     df.loc[df.index[_], tier_col] = (
                                         (row['rtl_wholesale_per_litre'] - 
                                          (row['DEL_reb_pl_30'] + del_rebate + row['equip_fin_pl_30'] + row['equip_main_pl_30'])) / pv_factors['net30']
-                                    ) + (del_fee_per_ltr_per_km * row['One_Way_Dist']) + cost_owned_equip_pv
+                                    ) + cost_owned_equip_pv
                                 
                                 # DEL Buy Equipment
                                 if (pd.notna(row['equip_fin_pl_30']) and pd.notna(row['equip_main_pl_30'])):
@@ -623,7 +641,7 @@ class FuelOptimizationPrecomputation:
                                     df.loc[df.index[_], tier_col] = (
                                         (row['rtl_wholesale_per_litre'] - 
                                          (row['DEL_reb_pl_30'] + del_rebate + row['equip_fin_pl_30'] + row['equip_main_pl_30'])) / pv_factors['net30']
-                                    ) + (del_fee_per_ltr_per_km * row['One_Way_Dist']) + cost_buy_equip_pv
+                                    ) + cost_buy_equip_pv
                                 
                                 # DEL Rent Equipment
                                 tier_col = f'del_rent_tier{band_suffix}'
@@ -631,7 +649,7 @@ class FuelOptimizationPrecomputation:
                                     df[tier_col] = np.nan
                                 df.loc[df.index[_], tier_col] = (
                                     (row['rtl_wholesale_per_litre'] - (row['DEL_reb_pl_30'] + del_rebate)) / pv_factors['net30']
-                                ) + (del_fee_per_ltr_per_km * row['One_Way_Dist'])
+                                )
                                 
                                 tier_cost_count += 3
         
@@ -889,7 +907,7 @@ class FuelOptimizationPrecomputation:
     
     def get_applicable_volume_tiers(self, supplier_id: int, supplier_depot_id: int, option: str) -> List[str]:
         """
-        Get list of applicable volume tier configurations for a supplier_depot-option combination.
+        Get list of applicable contract configurations for a supplier_depot-option combination.
         
         Args:
             supplier_id: Supplier ID
@@ -897,49 +915,36 @@ class FuelOptimizationPrecomputation:
             option: Option type (coc_cash, coc_30, del_own, etc.)
             
         Returns:
-            List of applicable tier configuration names
+            List of applicable contract configuration names
         """
-        applicable_tiers = []
-        volume_tiers = self.config.get('volume_tier_configurations', {})
+        applicable_contracts = []
+        contract_configs = self.config.get('supplier_contract_configurations', {})
         
-        for tier_name, tier_config in volume_tiers.items():
-            # Check scope filters
-            # No longer using nested scope_filters
+        for contract_name, contract_config in contract_configs.items():
+            # Only consider volume tier reward contracts for this function
+            if contract_config.get('contract_type') != 'volume_tier_rewards':
+                continue
             
-            # Check supplier filter (map numeric ID to letter name)
-            supplier_filter = tier_config.get('suppliers', ['*'])
+            # Check supplier filter (map numeric ID to name)
+            supplier_filter = contract_config.get('suppliers', ['*'])
             supplier_name = self.supplier_id_to_name.get(supplier_id, str(supplier_id))
             if supplier_filter != ['*'] and supplier_name not in supplier_filter:
                 continue
                 
-            # Check supplier depot filter (CHANGED: now filtering by supplier depot ID)
-            supplier_depot_filter = tier_config.get('supplier_depots', ['*']) 
+            # Check supplier depot filter
+            supplier_depot_filter = contract_config.get('supplier_depots', ['*']) 
             if supplier_depot_filter != ['*'] and str(supplier_depot_id) not in supplier_depot_filter:
                 continue
                 
-            # Check mode filter (COC/DEL)
-            mode_filter = tier_config.get('modes', ['*'])
+            # Check transport mode filter (COC/DEL)
+            mode_filter = contract_config.get('transport_modes', ['*'])
             option_mode = 'COC' if option.startswith('coc_') else 'DEL'
             if mode_filter != ['*'] and option_mode not in mode_filter:
                 continue
                 
-            # Check payment terms filter
-            # No terms filtering needed in simplified config
-            option_term = option.replace('coc_', '').replace('del_', '').upper()
-            if option_term == 'CASH':
-                option_term = 'CASH'
-            elif option_term in ['30', 'OWN', 'BUY', 'RENT']:
-                option_term = 'NET30'  # All non-cash options are NET30
-            elif option_term == '45':
-                option_term = 'NET45'
-            elif option_term == '60':
-                option_term = 'NET60'
-                
-            # Skip terms filtering in simplified config
-                
-            applicable_tiers.append(tier_name)
+            applicable_contracts.append(contract_name)
             
-        return applicable_tiers
+        return applicable_contracts
     
     def _decompose_base_cost_components(self, row: pd.Series, option: str) -> Dict[str, float]:
         """
@@ -1145,13 +1150,18 @@ class FuelOptimizationPrecomputation:
             
         row = matching_rows.iloc[0]
         
-        # Get tier configuration
-        tier_config = self.config['volume_tier_configurations'][tier_name]
-        combination_rule = tier_config.get('combination_rule', 'add')
+        # Get contract configuration
+        contract_config = self.config['supplier_contract_configurations'][tier_name]
+        rebate_combination = contract_config.get('rebate_combination', 'additive_to_base')
         
-        # Get volume tier bands - calculate cost for each non-zero rebate band
-        tier_bands = tier_config['bands']
-        valid_bands = [band for band in tier_bands if band['rebate'] > 0]
+        # Get volume tier reward bands - calculate cost for each non-zero rebate band
+        reward_bands = contract_config['reward_bands']
+        valid_bands = []
+        for band in reward_bands:
+            coc_rebate = band.get('coc_rebate', 0) or 0
+            del_rebate = band.get('del_rebate', 0) or 0
+            if coc_rebate > 0 or del_rebate > 0:
+                valid_bands.append(band)
         
         if not valid_bands:
             return {}
@@ -1174,7 +1184,10 @@ class FuelOptimizationPrecomputation:
             base_coc_30_rebate = row.get('COC_reb_pl_30', 0) or 0
             
             for i, band in enumerate(valid_bands):
-                tier_rebate_rate = band['rebate']
+                coc_rebate_rate = band.get('coc_rebate', 0) or 0
+                if coc_rebate_rate == 0:
+                    continue  # Skip bands with no COC rebate
+                    
                 min_vol = band['min_volume']
                 max_vol = band['max_volume']
                 
@@ -1184,16 +1197,16 @@ class FuelOptimizationPrecomputation:
                 else:
                     band_key = f"coc_30_tier_{min_vol//1000000}M_to_{max_vol//1000000}M"
                 
-                if combination_rule == 'override':
+                if rebate_combination == 'override_base':
                     # Override: ((wholesale/100) - vol_tier_rebate) / (1+WACC/365)^30 + transport
-                    tier_cost = ((wholesale_price - tier_rebate_rate) / pv_factors['net30'] + 
+                    tier_cost = ((wholesale_price - coc_rebate_rate) / pv_factors['net30'] + 
                                transport_cost_per_litre)
-                elif combination_rule == 'add':
+                elif rebate_combination == 'additive_to_base':
                     # Add: ((wholesale/100) - (base_rebate + vol_tier_rebate)) / (1+WACC/365)^30 + transport
-                    tier_cost = ((wholesale_price - (base_coc_30_rebate + tier_rebate_rate)) / pv_factors['net30'] + 
+                    tier_cost = ((wholesale_price - (base_coc_30_rebate + coc_rebate_rate)) / pv_factors['net30'] + 
                                transport_cost_per_litre)
                 else:
-                    logger.warning(f"Unknown combination rule: {combination_rule}")
+                    logger.warning(f"Unknown rebate combination: {rebate_combination}")
                     return {}
                     
                 tier_costs[band_key] = tier_cost
@@ -1204,16 +1217,16 @@ class FuelOptimizationPrecomputation:
             equip_fin = row.get('equip_fin_pl_30', 0) or 0
             equip_main = row.get('equip_main_pl_30', 0) or 0
             
-            # Get del_fee_per_ltr_per_km from config 
-            del_fee_per_ltr_per_km = self.config['basic_parameters'].get('del_fee_per_ltr_per_km', 0.0002)
-            delivery_cost_per_litre = del_fee_per_ltr_per_km * distance
             
             # Get equipment costs from config (PV terms)
             cost_owned_equip_pv = self.config['basic_parameters'].get('cost_owned_equip_pv', 0.05)
             cost_buy_equip_pv = self.config['basic_parameters'].get('cost_buy_equip_pv', 0.08)
             
             for i, band in enumerate(valid_bands):
-                tier_rebate_rate = band['rebate']
+                del_rebate_rate = band.get('del_rebate', 0) or 0
+                if del_rebate_rate == 0:
+                    continue  # Skip bands with no DEL rebate
+                    
                 min_vol = band['min_volume']
                 max_vol = band['max_volume']
                 
@@ -1223,35 +1236,33 @@ class FuelOptimizationPrecomputation:
                 else:
                     band_suffix = f"tier_{min_vol//1000000}M_to_{max_vol//1000000}M"
                 
-                if combination_rule == 'override':
+                if rebate_combination == 'override_base':
                     # Override: Replace DEL_reb_pl_30 with vol_tier_rebate, keep equipment costs
-                    # DEL_own: ((wholesale/100) - (vol_tier_reb + equip_fin + equip_main))/PV30 + delivery_fee + owned_equip_cost
-                    del_own_cost = ((wholesale_price - (tier_rebate_rate + equip_fin + equip_main)) / pv_factors['net30'] + 
-                                   delivery_cost_per_litre + cost_owned_equip_pv)
+                    # DEL_own: ((wholesale/100) - (vol_tier_reb + equip_fin + equip_main))/PV30 + owned_equip_cost
+                    del_own_cost = ((wholesale_price - (del_rebate_rate + equip_fin + equip_main)) / pv_factors['net30'] + 
+                                   cost_owned_equip_pv)
                     
                     # DEL_buy: Same but with buy equipment cost
-                    del_buy_cost = ((wholesale_price - (tier_rebate_rate + equip_fin + equip_main)) / pv_factors['net30'] + 
-                                   delivery_cost_per_litre + cost_buy_equip_pv)
+                    del_buy_cost = ((wholesale_price - (del_rebate_rate + equip_fin + equip_main)) / pv_factors['net30'] + 
+                                   cost_buy_equip_pv)
                     
-                    # DEL_rent: ((wholesale/100) - vol_tier_reb)/PV30 + delivery_fee (no equipment costs)
-                    del_rent_cost = ((wholesale_price - tier_rebate_rate) / pv_factors['net30'] + 
-                                    delivery_cost_per_litre)
+                    # DEL_rent: ((wholesale/100) - vol_tier_reb)/PV30 (no equipment costs)
+                    del_rent_cost = ((wholesale_price - del_rebate_rate) / pv_factors['net30'])
                     
-                elif combination_rule == 'add':
+                elif rebate_combination == 'additive_to_base':
                     # Add: Use DEL_reb_pl_30 + vol_tier_reb, keep equipment costs
-                    # DEL_own: ((wholesale/100) - (DEL_reb + vol_tier_reb + equip_fin + equip_main))/PV30 + delivery_fee + owned_equip_cost
-                    del_own_cost = ((wholesale_price - (base_del_rebate + tier_rebate_rate + equip_fin + equip_main)) / pv_factors['net30'] + 
-                                   delivery_cost_per_litre + cost_owned_equip_pv)
+                    # DEL_own: ((wholesale/100) - (DEL_reb + vol_tier_reb + equip_fin + equip_main))/PV30 + owned_equip_cost
+                    del_own_cost = ((wholesale_price - (base_del_rebate + del_rebate_rate + equip_fin + equip_main)) / pv_factors['net30'] + 
+                                   cost_owned_equip_pv)
                     
                     # DEL_buy: Same but with buy equipment cost
-                    del_buy_cost = ((wholesale_price - (base_del_rebate + tier_rebate_rate + equip_fin + equip_main)) / pv_factors['net30'] + 
-                                   delivery_cost_per_litre + cost_buy_equip_pv)
+                    del_buy_cost = ((wholesale_price - (base_del_rebate + del_rebate_rate + equip_fin + equip_main)) / pv_factors['net30'] + 
+                                   cost_buy_equip_pv)
                     
-                    # DEL_rent: ((wholesale/100) - (DEL_reb + vol_tier_reb))/PV30 + delivery_fee
-                    del_rent_cost = ((wholesale_price - (base_del_rebate + tier_rebate_rate)) / pv_factors['net30'] + 
-                                    delivery_cost_per_litre)
+                    # DEL_rent: ((wholesale/100) - (DEL_reb + vol_tier_reb))/PV30
+                    del_rent_cost = ((wholesale_price - (base_del_rebate + del_rebate_rate)) / pv_factors['net30'])
                 else:
-                    logger.warning(f"Unknown combination rule: {combination_rule}")
+                    logger.warning(f"Unknown rebate combination: {rebate_combination}")
                     continue
                     
                 # Add DEL tier costs to result

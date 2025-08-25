@@ -21,6 +21,7 @@ except ImportError:
     raise ImportError("docplex not found. Please install IBM Decision Optimization CPLEX Modeling for Python: pip install docplex")
 
 from precomputation import FuelOptimizationPrecomputation
+from optimization_map import OptimizationMapper
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -49,10 +50,18 @@ class FuelDepotOptimizerDocplex:
         self.availability_matrix = {}
         self.tier_configurations = {}
         self.tier_costs = {}
+        self.supplier_depot_capacity_limits = {}
         
         # Decision variables (will be created by docplex)
         self.allocation_vars = {}  # [depot_id, supplier_depot_id, option] -> Variable
         self.tier_vars = {}        # [tier_name] -> Variable
+        
+        # Initialize mapper for visualization
+        try:
+            self.mapper = OptimizationMapper()
+        except Exception as e:
+            logger.warning(f"Could not initialize mapper: {e}")
+            self.mapper = None
         
         # Option types (base, RAC, and volume tier enhanced)
         self.base_option_types = ['coc_cash', 'coc_30', 'coc_45', 'coc_60', 'del_own', 'del_buy', 'del_rent']
@@ -66,15 +75,21 @@ class FuelDepotOptimizerDocplex:
         logger.info("FuelDepotOptimizerDocplex initialized")
     
     def _load_configuration(self):
-        """Load volume tier configurations."""
+        """Load volume tier configurations and supplier capacity limits."""
         try:
             with open(self.config_path, 'r') as f:
                 config = json.load(f)
-            self.tier_configurations = config.get('volume_tier_configurations', {})
-            logger.info(f"Loaded {len(self.tier_configurations)} volume tier configurations")
+            self.contract_configurations = config.get('supplier_contract_configurations', {})
+            self.supplier_depot_capacity_limits = config.get('supplier_depot_capacity_limits', {})
+            # Remove description field if present
+            if 'description' in self.supplier_depot_capacity_limits:
+                del self.supplier_depot_capacity_limits['description']
+            logger.info(f"Loaded {len(self.contract_configurations)} supplier contract configurations")
+            logger.info(f"Loaded capacity limits for {len(self.supplier_depot_capacity_limits)} supplier depots")
         except Exception as e:
             logger.warning(f"Could not load config: {e}")
-            self.tier_configurations = {}
+            self.contract_configurations = {}
+            self.supplier_depot_capacity_limits = {}
     
     def prepare_data(self):
         """Extract and structure data from precomputed dictionary."""
@@ -143,13 +158,13 @@ class FuelDepotOptimizerDocplex:
                         self.allocation_vars[(depot_id, supplier_depot_id, option_type)] = var
                         allocation_count += 1
         
-        # Volume tier variables: binary[tier_name]
-        for tier_name in self.tier_configurations:
-            var_name = f"tier_{tier_name}"
+        # Contract variables: binary[contract_name] 
+        for contract_name in self.contract_configurations:
+            var_name = f"contract_{contract_name}"
             var = self.model.binary_var(name=var_name)
-            self.tier_vars[tier_name] = var
+            self.tier_vars[contract_name] = var
         
-        logger.info(f"Created {allocation_count} allocation variables + {len(self.tier_vars)} tier variables")
+        logger.info(f"Created {allocation_count} allocation variables + {len(self.tier_vars)} contract variables")
         return self
     
     def set_objective(self):
@@ -218,18 +233,26 @@ class FuelDepotOptimizerDocplex:
                 )
                 constraint_count += 1
         
-        # Constraint 2: Volume tier logical constraints
-        # Simplified approach: tier options can only be used if the total volume for that tier is met
-        for tier_name, tier_config in self.tier_configurations.items():
-            tier_supplier_depots = tier_config.get('supplier_depots', [])
-            tier_suppliers = tier_config.get('suppliers', [])
-            tier_modes = tier_config.get('transport_modes', [])
-            is_rac_tier = tier_config.get('Rebate_adjustment_clause', False)
+        # Constraint 2: Volume tier reward contract constraints
+        # Volume tier rewards can only be used if the total volume for that contract is met
+        for contract_name, contract_config in self.contract_configurations.items():
+            # Skip RAC contracts - handled separately
+            if contract_config.get('contract_type') == 'rebate_adjustment_clause':
+                continue
             
-            # Get volume threshold for this tier
-            tier_threshold = self._get_tier_threshold(tier_config)
+            # Only handle volume tier reward contracts here
+            if contract_config.get('contract_type') != 'volume_tier_rewards':
+                continue
+                
+            contract_supplier_depots = contract_config.get('supplier_depots', [])
+            contract_suppliers = contract_config.get('suppliers', [])
+            transport_modes = contract_config.get('transport_modes', [])
+            volume_calculation_modes = contract_config.get('volume_calculation_modes', transport_modes)
             
-            if tier_threshold > 0 and not is_rac_tier:  # Skip RAC tiers for now, handle separately
+            # Get volume threshold for this contract
+            contract_threshold = self._get_contract_threshold(contract_config)
+            
+            if contract_threshold > 0:
                 # Find all tier option variables that belong to this tier
                 tier_option_vars = []
                 volume_contributing_vars = []
@@ -238,28 +261,31 @@ class FuelDepotOptimizerDocplex:
                     depot_volume = self.customer_depots[depot_id]['annual_volume']
                     
                     for supplier_depot_id in self.cost_matrices[depot_id]:
-                        # Check if this supplier depot participates in this tier
+                        # Check if this supplier depot participates in this contract
                         supplier_name = self.supplier_depots.get(supplier_depot_id, {}).get('supplier_name', '')
                         
-                        if (tier_suppliers != ['*'] and supplier_name not in tier_suppliers):
+                        if (contract_suppliers != ['*'] and supplier_name not in contract_suppliers):
                             continue
-                        if (tier_supplier_depots != ['*'] and str(supplier_depot_id) not in tier_supplier_depots):
+                        if (contract_supplier_depots != ['*'] and str(supplier_depot_id) not in contract_supplier_depots):
                             continue
                         
                         for option_type in self.all_option_types:
                             if (depot_id, supplier_depot_id, option_type) in self.allocation_vars:
                                 var = self.allocation_vars[(depot_id, supplier_depot_id, option_type)]
                                 
-                                # Check if this option belongs to this tier
-                                if 'tier_' in option_type and self._option_belongs_to_tier(option_type, tier_name):
+                                # Check if this option belongs to this contract
+                                if 'tier_' in option_type and self._option_belongs_to_contract(option_type, contract_name):
                                     tier_option_vars.append(var)
                                 
-                                # Check if this option contributes to tier volume calculation
+                                # Check if this option contributes to volume calculation
                                 option_mode = self._get_option_transport_mode(option_type)
-                                if (option_mode in tier_modes and 
-                                    'tier_' not in option_type and 
-                                    not option_type.startswith('rac_')):  # Only base options count for volume
-                                    volume_contributing_vars.append(depot_volume * var)
+                                if option_mode in volume_calculation_modes:
+                                    # Include base options (excluding RAC)
+                                    if 'tier_' not in option_type and not option_type.startswith('rac_'):
+                                        volume_contributing_vars.append(depot_volume * var)
+                                    # Also include tier options that belong to this contract and match transport modes
+                                    elif 'tier_' in option_type and self._option_belongs_to_contract(option_type, contract_name):
+                                        volume_contributing_vars.append(depot_volume * var)
                 
                 if tier_option_vars and volume_contributing_vars:
                     # Big M constraint: tier options can only be used if volume threshold is met
@@ -269,33 +295,31 @@ class FuelDepotOptimizerDocplex:
                     # This is implemented as: sum(tier_options) <= big_M * (volume >= threshold)
                     # Where (volume >= threshold) is modeled using an auxiliary binary variable
                     
-                    tier_var = self.tier_vars[tier_name]
+                    contract_var = self.tier_vars[contract_name]
                     
-                    # Constraint: If tier is not active, no tier options can be selected
+                    # Constraint: If contract is not active, no tier options can be selected
                     self.model.add_constraint(
-                        self.model.sum(tier_option_vars) <= big_M * tier_var,
-                        ctname=f"tier_options_require_activation_{tier_name}"
+                        self.model.sum(tier_option_vars) <= big_M * contract_var,
+                        ctname=f"contract_options_require_activation_{contract_name}"
                     )
                     constraint_count += 1
                     
-                    # Constraint: Tier is active only if volume threshold is met
+                    # Constraint: Contract is active only if volume threshold is met
                     total_volume = self.model.sum(volume_contributing_vars)
                     self.model.add_constraint(
-                        total_volume >= tier_threshold * tier_var,
-                        ctname=f"tier_threshold_{tier_name}"
+                        total_volume >= contract_threshold * contract_var,
+                        ctname=f"contract_threshold_{contract_name}"
                     )
                     constraint_count += 1
         
-        # Constraint 3: RAC tier constraints (different logic than regular volume tiers)
-        for tier_name, tier_config in self.tier_configurations.items():
-            is_rac_tier = tier_config.get('Rebate_adjustment_clause', False)
-            
-            if is_rac_tier:
-                tier_threshold = self._get_tier_threshold(tier_config)
-                tier_suppliers = tier_config.get('suppliers', [])
-                tier_modes = tier_config.get('transport_modes', [])
+        # Constraint 3: RAC contract constraints (different logic than volume tier rewards)
+        for contract_name, contract_config in self.contract_configurations.items():
+            if contract_config.get('contract_type') == 'rebate_adjustment_clause':
+                rac_threshold = self._get_contract_threshold(contract_config)
+                rac_suppliers = contract_config.get('suppliers', [])
+                rac_modes = contract_config.get('transport_modes', [])
                 
-                if tier_threshold > 0:
+                if rac_threshold > 0:
                     # RAC logic: if volume >= threshold, use base costs; if volume < threshold, use RAC costs
                     # This is modeled as mutual exclusion between base and RAC options for the same supplier
                     
@@ -309,8 +333,8 @@ class FuelDepotOptimizerDocplex:
                         for supplier_depot_id in self.cost_matrices[depot_id]:
                             supplier_name = self.supplier_depots.get(supplier_depot_id, {}).get('supplier_name', '')
                             
-                            # Check if this supplier participates in this RAC tier
-                            if (tier_suppliers != ['*'] and supplier_name not in tier_suppliers):
+                            # Check if this supplier participates in this RAC contract
+                            if (rac_suppliers != ['*'] and supplier_name not in rac_suppliers):
                                 continue
                             
                             for option_type in self.all_option_types:
@@ -318,8 +342,8 @@ class FuelDepotOptimizerDocplex:
                                     var = self.allocation_vars[(depot_id, supplier_depot_id, option_type)]
                                     option_mode = self._get_option_transport_mode(option_type)
                                     
-                                    # Check if this option is in RAC tier modes
-                                    if option_mode in tier_modes:
+                                    # Check if this option is in RAC contract modes
+                                    if option_mode in rac_modes:
                                         if option_type.startswith('rac_'):
                                             rac_option_vars.append(var)
                                         elif 'tier_' not in option_type:  # Base options only
@@ -327,62 +351,85 @@ class FuelDepotOptimizerDocplex:
                                             volume_contributing_vars.append(depot_volume * var)
                     
                     if rac_option_vars and base_option_vars and volume_contributing_vars:
-                        # RAC tier binary variable
-                        tier_var = self.tier_vars[tier_name]
+                        # RAC contract binary variable
+                        contract_var = self.tier_vars[contract_name]
                         big_M = len(rac_option_vars + base_option_vars)
                         
-                        # Constraint: If volume commitment is met (tier active), RAC options cannot be used
+                        # Constraint: If volume commitment is met (contract active), RAC options cannot be used
                         self.model.add_constraint(
-                            self.model.sum(rac_option_vars) <= big_M * (1 - tier_var),
-                            ctname=f"rac_penalty_when_volume_not_met_{tier_name}"
+                            self.model.sum(rac_option_vars) <= big_M * (1 - contract_var),
+                            ctname=f"rac_penalty_when_volume_not_met_{contract_name}"
                         )
                         constraint_count += 1
                         
-                        # Constraint: Tier is active only if volume threshold is met
+                        # Constraint: Contract is active only if volume threshold is met
                         total_volume = self.model.sum(volume_contributing_vars)
                         self.model.add_constraint(
-                            total_volume >= tier_threshold * tier_var,
-                            ctname=f"rac_tier_threshold_{tier_name}"
+                            total_volume >= rac_threshold * contract_var,
+                            ctname=f"rac_contract_threshold_{contract_name}"
                         )
                         constraint_count += 1
                         
-                        logger.info(f"Added RAC tier constraints for {tier_name}: {len(rac_option_vars)} RAC options, {len(base_option_vars)} base options")
+                        # Constraint: If volume commitment is not met (contract not active), base options cannot be used
+                        # This enforces mutual exclusion: either base options (when commitment met) OR RAC options (when commitment not met)
+                        self.model.add_constraint(
+                            self.model.sum(base_option_vars) <= big_M * contract_var,
+                            ctname=f"rac_force_penalty_when_volume_not_met_{contract_name}"
+                        )
+                        constraint_count += 1
+                        
+                        logger.info(f"Added RAC contract constraints for {contract_name}: {len(rac_option_vars)} RAC options, {len(base_option_vars)} base options")
         
-        logger.info(f"Added {constraint_count} constraints")
+        # Constraint 4: Supplier depot capacity limits
+        capacity_constraint_count = 0
+        for supplier_depot_id_str, capacity_limit in self.supplier_depot_capacity_limits.items():
+            supplier_depot_id = int(supplier_depot_id_str)  # Convert string key to int
+            if capacity_limit <= 0:
+                continue
+                
+            # Find all allocation variables for this specific supplier depot
+            depot_allocation_vars = []
+            
+            for depot_id in self.cost_matrices:
+                if supplier_depot_id in self.cost_matrices[depot_id]:
+                    depot_volume = self.customer_depots[depot_id]['annual_volume']
+                    
+                    # Add all allocation variables for this supplier depot
+                    for option_type in self.all_option_types:
+                        if (depot_id, supplier_depot_id, option_type) in self.allocation_vars:
+                            var = self.allocation_vars[(depot_id, supplier_depot_id, option_type)]
+                            # Volume allocated = depot_volume * allocation_variable
+                            depot_allocation_vars.append(depot_volume * var)
+            
+            if depot_allocation_vars:
+                # Constraint: Total volume allocated to this supplier depot ≤ capacity limit
+                total_depot_volume = self.model.sum(depot_allocation_vars)
+                self.model.add_constraint(
+                    total_depot_volume <= capacity_limit,
+                    ctname=f"supplier_depot_capacity_{supplier_depot_id}"
+                )
+                capacity_constraint_count += 1
+                supplier_depot_name = self.supplier_depots.get(supplier_depot_id, {}).get('supplier_name', 'Unknown')
+                logger.info(f"Added capacity constraint for supplier depot {supplier_depot_id} ({supplier_depot_name}): max {capacity_limit:,} litres from {len(depot_allocation_vars)} allocation variables")
+        
+        constraint_count += capacity_constraint_count
+        logger.info(f"Added {constraint_count} total constraints ({capacity_constraint_count} supplier depot capacity constraints)")
         return self
     
-    def _get_tier_threshold(self, tier_config: Dict[str, Any]) -> float:
-        """Extract volume threshold from tier configuration."""
-        bands = tier_config.get('bands', [])
-        
-        # For RAC tiers, the threshold is the second band (where commitment kicks in)
-        if tier_config.get('Rebate_adjustment_clause', False):
-            if len(bands) >= 2:
-                return bands[1].get('min_volume', 0)
-        else:
-            # For standard tiers, find first band with non-zero min_volume
-            for band in bands:
+    def _get_contract_threshold(self, contract_config: Dict[str, Any]) -> float:
+        """Extract volume threshold from contract configuration."""
+        if contract_config.get('contract_type') == 'rebate_adjustment_clause':
+            # For RAC contracts, use the commitment threshold directly
+            return contract_config.get('commitment_threshold', 0)
+        elif contract_config.get('contract_type') == 'volume_tier_rewards':
+            # For reward contracts, find first band with non-zero min_volume
+            reward_bands = contract_config.get('reward_bands', [])
+            for band in reward_bands:
                 min_vol = band.get('min_volume', 0)
                 if min_vol > 0:
                     return min_vol
         return 0
     
-    def _group_tiers_by_supplier_mode(self) -> Dict[str, List[str]]:
-        """Group tier configurations by supplier-mode to enforce mutual exclusion."""
-        groups = {}
-        
-        for tier_name, tier_config in self.tier_configurations.items():
-            suppliers = tier_config.get('suppliers', [])
-            modes = tier_config.get('modes', [])
-            
-            for supplier in suppliers:
-                for mode in modes:
-                    group_key = f"{supplier}_{mode}"
-                    if group_key not in groups:
-                        groups[group_key] = []
-                    groups[group_key].append(tier_name)
-        
-        return groups
     
     def _get_option_transport_mode(self, option_type: str) -> str:
         """Extract transport mode from option type (handles both base and RAC options)."""
@@ -393,20 +440,20 @@ class FuelDepotOptimizerDocplex:
         else:
             return 'UNKNOWN'
     
-    def _option_belongs_to_tier(self, option_type: str, tier_name: str) -> bool:
-        """Check if a tier option belongs to a specific tier configuration."""
+    def _option_belongs_to_contract(self, option_type: str, contract_name: str) -> bool:
+        """Check if a tier option belongs to a specific contract configuration."""
         # Extract tier band from option name (e.g., "coc_30_tier_15M_to_20M" -> "15M_to_20M")
         if 'tier_' not in option_type:
             return False
         
         tier_part = option_type.split('tier_')[1]  # Get part after 'tier_'
         
-        # Get tier configuration bands
-        tier_config = self.tier_configurations.get(tier_name, {})
-        bands = tier_config.get('bands', [])
+        # Get contract configuration reward bands
+        contract_config = self.contract_configurations.get(contract_name, {})
+        reward_bands = contract_config.get('reward_bands', [])
         
         # Check if this tier part matches any band in the configuration
-        for band in bands:
+        for band in reward_bands:
             min_vol = band.get('min_volume', 0)
             max_vol = band.get('max_volume')
             
@@ -423,6 +470,7 @@ class FuelDepotOptimizerDocplex:
                     return True
         
         return False
+    
     
     def _get_applicable_tiers_for_allocation(self, depot_id: int, supplier_depot_id: int, option_type: str) -> List[str]:
         """Get tiers that apply to a specific allocation."""
@@ -597,6 +645,32 @@ class FuelDepotOptimizerDocplex:
             return tier_option.split('_tier_')[0]
         return tier_option
     
+    def generate_allocation_map(self, results: Dict[str, Any], save_path: str = "optimization_allocation_map.html") -> str:
+        """
+        Generate an interactive map showing the optimization allocation results.
+        
+        Args:
+            results: Optimization results containing allocations
+            save_path: Path to save the HTML map file
+            
+        Returns:
+            str: Path to the generated map file
+        """
+        if not self.mapper:
+            logger.warning("Mapper not initialized - cannot generate map")
+            return None
+        
+        try:
+            # Generate allocation map
+            map_path = self.mapper.create_allocation_map(results, save_path)
+            logger.info(f"Allocation map generated: {map_path}")
+            
+            return map_path
+            
+        except Exception as e:
+            logger.error(f"Failed to generate map: {e}")
+            return None
+    
     def run_optimization(self) -> Dict[str, Any]:
         """Run complete optimization pipeline."""
         logger.info("Starting DOcplex optimization pipeline...")
@@ -610,6 +684,16 @@ class FuelDepotOptimizerDocplex:
             
             # Solve and return results
             results = self.solve()
+            
+            # Generate allocation map if optimization was successful
+            if results['status'] == 'optimal' and results.get('allocations'):
+                try:
+                    map_path = self.generate_allocation_map(results)
+                    if map_path:
+                        results['map_path'] = map_path
+                        logger.info(f"Interactive allocation map saved to: {map_path}")
+                except Exception as e:
+                    logger.warning(f"Could not generate allocation map: {e}")
             
             logger.info("DOcplex optimization pipeline completed!")
             return results

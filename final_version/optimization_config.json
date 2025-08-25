@@ -2,11 +2,10 @@
   "basic_parameters": {
     "fuel_type": "Diesel 0.005% sulfur",
     "wacc_percent": 12.5,
-    "tanker_cost_per_km": 15.50,
+    "tanker_cost_per_km": 15.5,
     "tanker_capacity": 30000,
     "cost_owned_equip_pv": 0.05,
-    "cost_buy_equip_pv": 0.08,
-    "del_fee_per_ltr_per_km": 0.0002
+    "cost_buy_equip_pv": 0.08
   },
   
   "present_value_settings": {
@@ -28,99 +27,127 @@
   },
   
   "international_fuel_prices": {
-    "Botswana": 19.06,
+    "Botswana": 22,
     "Namibia": 20.09,
     "Mozambique": 22.25,
     "Eswatini": 20.29
   },
   
-  "volume_tier_configurations": {
-    "supplier_A_rac_20M_tier": {
+  "supplier_contract_configurations": {
+    "supplier_A_rac_commitment": {
+      "contract_type": "rebate_adjustment_clause",
       "suppliers": ["Supplier A"],
       "supplier_depots": ["*"],
-      "Rebate_adjustment_clause": true,
-      "transport_modes": ["COC", "DEL"], 
-      "combination_rule": null,
-      "bands": [
-        {
-          "min_volume": 0,
-          "max_volume": 20000000,
-          "coc_rebate": null,
-          "del_rebate": null
-        },
-        {
-          "min_volume": 20000000,
-          "max_volume": null,
-          "coc_rebate": null,
-          "del_rebate": null
-        }
-      ]
+      "transport_modes": ["COC", "DEL"],
+      "volume_calculation_modes": ["COC", "DEL"],
+      "commitment_threshold": 20000000,
+      "penalty_structure": {
+        "below_threshold": "use_wholesale_rates",
+        "above_threshold": "use_negotiated_rates"
+      },
+      "description": "Use base costs if ≥20M volume, penalty costs if <20M"
     },
-    "supplier_C_volume_tiers": {
+    
+    "supplier_C_volume_rewards": {
+      "contract_type": "volume_tier_rewards",
       "suppliers": ["Supplier C"],
       "supplier_depots": ["*"],
-      "Rebate_adjustment_clause": false,
-      "transport_modes": ["COC", "DEL"], 
-      "combination_rule": "add",
-      "bands": [
+      "transport_modes": ["COC", "DEL"],
+      "volume_calculation_modes": ["COC", "DEL"],
+      "tier_structure": "incremental_bands",
+      "rebate_combination": "additive_to_base",
+      "reward_bands": [
         {
           "min_volume": 0,
           "max_volume": 15000000,
           "del_rebate": 0.00,
-          "coc_rebate": 0.00
+          "coc_rebate": 0.00,
+          "description": "Base rates only - no additional rebates"
         },
         {
           "min_volume": 15000000,
           "max_volume": 20000000,
           "del_rebate": 0.50,
-          "coc_rebate": 0.59
+          "coc_rebate": 0.59,
+          "description": "First tier bonus rebates"
         },
         {
           "min_volume": 20000000,
           "max_volume": 25000000,
           "del_rebate": 0.51,
-          "coc_rebate": 0.60
+          "coc_rebate": 0.60,
+          "description": "Second tier bonus rebates"
         },
         {
           "min_volume": 25000000,
           "max_volume": null,
           "del_rebate": 0.53,
-          "coc_rebate": 0.62
+          "coc_rebate": 0.62,
+          "description": "Top tier bonus rebates"
         }
       ]
     },
-    "supplier_I_del_only_tiers": {
+    
+    "supplier_I_del_volume_rewards": {
+      "contract_type": "volume_tier_rewards", 
       "suppliers": ["Supplier I"],
       "supplier_depots": ["*"],
-      "transport_modes": ["DEL"], 
-      "Rebate_adjustment_clause": false,
-      "combination_rule": "add",
-      "bands": [
+      "transport_modes": ["DEL"],
+      "volume_calculation_modes": ["DEL"],
+      "tier_structure": "incremental_bands",
+      "rebate_combination": "override_base",
+      "reward_bands": [
         {
           "min_volume": 0,
           "max_volume": 10000000,
           "del_rebate": 0.00,
-          "coc_rebate": null
+          "coc_rebate": null,
+          "description": "Base DEL rates, COC uses standard base rates"
         },
         {
           "min_volume": 10000000,
           "max_volume": 20000000,
           "del_rebate": 0.51,
-          "coc_rebate": null
+          "coc_rebate": null,
+          "description": "First tier DEL bonus rebates"
         },
         {
           "min_volume": 20000000,
           "max_volume": 30000000,
           "del_rebate": 0.54,
-          "coc_rebate": null
+          "coc_rebate": null,
+          "description": "Second tier DEL bonus rebates"
         },
         {
           "min_volume": 30000000,
           "max_volume": null,
           "del_rebate": 0.56,
-          "coc_rebate": null
+          "coc_rebate": null,
+          "description": "Top tier DEL bonus rebates"
         }
       ]
     }
+  },
+  
+  "supplier_depot_capacity_limits": {
+    "description": "Maximum annual volume each supplier depot can supply (in litres). More realistic than supplier-level limits as it reflects terminal throughput constraints.",
+    
+    "1": 3500000, "2": 2800000, "3": 2500000, "4": 3200000, "5": 2900000, "6": 2200000, "7": 3100000, "8": 2600000, "54": 2100000,
+    
+    "9": 2800000, "10": 2600000, "11": 3500000, "12": 2400000, "13": 2900000, "14": 3200000, "15": 2100000, "16": 2300000, "17": 3400000, "18": 2700000, "19": 2200000, "20": 2500000,
+    
+    "21": 3200000, "22": 2900000, "23": 2800000, "24": 3100000, "25": 3200000,
+    
+    "26": 2600000, "27": 2400000, "28": 2800000, "29": 2200000, "30": 2500000, "31": 2700000, "32": 2300000, "33": 3000000, "34": 2400000, "35": 2800000, "36": 2600000, "37": 2200000, "38": 2500000, "39": 2300000, "40": 2700000, "41": 2400000,
+    
+    "42": 3400000, "43": 3200000, "44": 2800000, "45": 3100000, "46": 2900000, "47": 2600000, "48": 2700000,
+    
+    "49": 5500000, "50": 4800000, "51": 5200000,
+    
+    "52": 1900000, "53": 1700000, "55": 1800000, "56": 1600000, "57": 2000000, "58": 1850000, "59": 1750000, "60": 1900000, "61": 1650000, "62": 1800000, "63": 1700000,
+    
+    "64": 6500000, "65": 5500000,
+    
+    "66": 1500000, "67": 1400000, "68": 1300000, "69": 1600000, "70": 1450000, "71": 1350000, "72": 1550000, "73": 1250000, "74": 1400000, "75": 1300000
   }
 }
