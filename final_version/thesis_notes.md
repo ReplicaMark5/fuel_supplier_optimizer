@@ -291,19 +291,89 @@
 - **System Integration**: Complete volume tier system ready for binary integer programming implementation
 - **Data Structure Optimization**: Clean base_costs + tier_costs dictionary structure for mathematical solver consumption
 
-## Current Project Status: Ready for CPLEX Integration (January 2025)
+## Phase 4 Complete: CPLEX Integration and Optimization System (August 2025)
+
+### 11. CPLEX Optimization Engine Implementation
+- **Mathematical Model Structure**: Complete binary integer programming implementation using CPLEX via docplex library
+- **Decision Variables**: Binary variables for each customer depot → supplier depot → cost option combination
+  - **Variable Structure**: `x[customer_depot_id][supplier_depot_id][option_type]` where option_type includes base costs and volume tier options
+  - **Scale**: 31,079 total decision variables across 2,011 depot-supplier_depot combinations
+- **Objective Function**: Minimize total present value cost across all fuel supply allocations
+  - **Implementation**: `sum(annual_volume * cost_per_litre * x[c][s][o] for all combinations)`
+  - **Cost Integration**: Direct use of precomputed cost dictionary values
+- **Constraint Implementation**:
+  - **Assignment Constraint**: Each customer depot assigned to exactly one supplier depot option: `sum(x[c][s][o]) = 1 for each c`
+  - **Capacity Constraints**: Supplier depot throughput limitations with binding constraint identification
+  - **Volume Tier Constraints**: Binary logic for tier activation based on aggregate volume commitments
+
+### 12. Capacity Management System
+- **Supplier Depot Capacity Limits**: Configurable capacity constraints per supplier depot location
+- **Capacity Utilization Tracking**: Real-time calculation of capacity usage with binding constraint identification
+- **Overflow Handling**: Mathematical constraint enforcement preventing over-allocation
+- **Business Logic**: Realistic capacity limitations based on infrastructure constraints
+
+### 13. Enhanced Visualization and Mapping System
+- **Interactive Map Generation**: Folium-based visualization system for optimization results
+- **Layer-Based Architecture**: Toggleable map layers for comprehensive analysis
+  - **Base Layer**: Grey potential routes and customer depot markers (always visible)
+  - **Supplier Layers**: Individual supplier depot markers with custom hex colors per supplier (toggleable)
+  - **Optimal Routes Layer**: Selected allocation routes in supplier-specific colors (toggleable)
+- **Advanced Marker System**:
+  - **Customer Depots**: Black folium markers with home icons
+  - **Supplier Depots**: BeautifyIcon markers with custom hex colors matching route lines
+  - **MarkerCluster Integration**: Automatic clustering/splitting of overlapping supplier depots based on zoom level
+- **Detailed Route Information**: Enhanced popup system showing all available cost options
+  - **Base Options**: COC/DEL pricing with per-litre and annual cost calculations
+  - **RAC Penalty Options**: Higher penalty costs for volume commitment failures
+  - **Volume Tier Options**: Reward pricing for volume commitment achievement
+  - **Color-Coded Display**: Visual distinction between base (black), penalty (orange), and reward (green) options
+
+### 14. Map Visualization Features
+- **Layer Control Panel**: Right-side panel for selective layer visibility
+  - **Supplier Toggle**: Individual supplier depot visibility control (🏭 Supplier A, 🏭 Supplier C, etc.)
+  - **Route Toggle**: Optimal allocation line visibility control (🎯 Optimal Routes)
+  - **Interactive Control**: Real-time show/hide functionality for focused analysis
+- **Color Consistency**: Unified hex color scheme across supplier depot markers and allocation route lines
+- **Map Theme**: CartoDB positron (white theme) for enhanced color visibility and professional appearance
+- **Route Detail Popups**: Comprehensive cost option display for potential and optimized routes
+  - **Route Information**: Customer → Supplier, distance, annual volume
+  - **Cost Breakdown**: All available options with R/litre and annual cost calculations
+  - **Option Categories**: Base, RAC penalty, and volume tier options with color coding
+
+### 15. System Integration and Data Flow
+- **Precomputation → Optimization**: Seamless data transfer from cost dictionary to CPLEX model
+- **Optimization → Visualization**: Direct result integration with enhanced mapping system
+- **Configuration Management**: Unified JSON-based parameter system across all components
+- **Database Independence**: Mapper system uses precomputed dictionary exclusively (no database queries)
+- **Performance Optimization**: 
+  - **Precomputation**: <1 second for complete cost calculations
+  - **CPLEX Optimization**: Sub-second solve time for 31K variables
+  - **Map Generation**: Interactive visualization with layer controls and detailed popups
+
+### Methodology Results Summary (Phase 4)
+- **Complete End-to-End System**: Functional optimization pipeline from data to visualization
+- **Mathematical Accuracy**: All cost calculations validated and integrated with CPLEX solver
+- **Visualization Excellence**: Professional interactive mapping with comprehensive analysis capabilities
+- **System Performance**: Sub-second processing across all components enabling interactive analysis
+- **Business Logic Compliance**: Full alignment with South African fuel supply chain practices
+- **Scalable Architecture**: Modular system design supporting future enhancements and modifications
+
+## Current Project Status: Complete Optimization System (August 2025)
 
 ### Completed System Architecture
-- **Precomputation Engine**: Complete cost calculation system with volume tier support
-- **Configuration Management**: Simplified JSON-based parameter system
-- **Database Infrastructure**: Optimized SQLite structure with 2,011 depot-supplier_depot combinations  
-- **Volume Tier Logic**: Supplier depot-specific tier structures with incremental cost calculations
-- **Formula Validation**: All calculations verified against manual specifications
-- **Interactive Testing**: Query interface for cost validation and debugging
+- **Precomputation Engine**: Complete cost calculation system with volume tier support ✅
+- **CPLEX Integration**: Binary integer programming optimization with capacity constraints ✅
+- **Configuration Management**: Simplified JSON-based parameter system ✅
+- **Database Infrastructure**: Optimized SQLite structure with 2,011 depot-supplier_depot combinations ✅
+- **Volume Tier Logic**: Supplier depot-specific tier structures with incremental cost calculations ✅
+- **Formula Validation**: All calculations verified against manual specifications ✅
+- **Interactive Visualization**: Professional mapping system with layer controls and detailed analysis ✅
+- **Capacity Management**: Supplier depot capacity constraints with utilization tracking ✅
 
-### Next Phase Requirements
-- **CPLEX Integration**: Binary integer programming model implementation
-- **Decision Variables**: Binary selection variables for each depot-supplier_depot-option combination
-- **Objective Function**: Minimize total present value cost across all allocations
-- **Volume Constraints**: Aggregate volume tracking for tier threshold determination
-- **Capacity Constraints**: Supplier depot capacity limitations if required
+### System Capabilities
+- **Optimization Execution**: Complete fuel depot allocation with cost minimization
+- **Capacity Analysis**: Binding constraint identification and utilization reporting
+- **Interactive Visualization**: Multi-layer mapping with toggleable supplier networks
+- **Cost Analysis**: Comprehensive route-level cost option exploration
+- **Business Rule Enforcement**: Volume tier activation and penalty cost application
+- **Performance Excellence**: Sub-second execution across all system components

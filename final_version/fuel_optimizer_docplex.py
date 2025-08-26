@@ -728,10 +728,10 @@ class FuelDepotOptimizerDocplex:
     
     def generate_allocation_map(self, results: Dict[str, Any], save_path: str = "optimization_allocation_map.html") -> str:
         """
-        Generate an interactive map showing the optimization allocation results.
+        Generate an enhanced interactive map showing all routes and optimization results.
         
         Args:
-            results: Optimization results containing allocations
+            results: Optimization results containing allocations and capacity data
             save_path: Path to save the HTML map file
             
         Returns:
@@ -742,9 +742,23 @@ class FuelDepotOptimizerDocplex:
             return None
         
         try:
-            # Generate allocation map
-            map_path = self.mapper.create_allocation_map(results, save_path)
-            logger.info(f"Allocation map generated: {map_path}")
+            # Create comprehensive data package for enhanced mapping
+            comprehensive_data = {
+                'optimization_results': results,              # Current optimization results
+                'all_route_costs': self.precomputed_data,     # Complete precomputed cost dictionary
+                'capacity_limits': self.supplier_depot_capacity_limits,  # Capacity constraints
+                'optimization_metadata': {
+                    'total_cost': results.get('total_annual_cost'),
+                    'active_tiers': results.get('active_tiers', []),
+                    'binding_constraints': results.get('binding_capacity_constraints', []),
+                    'near_capacity_constraints': results.get('near_capacity_constraints', []),
+                    'total_allocations': results.get('total_allocations', 0)
+                }
+            }
+            
+            # Use enhanced allocation mapping
+            map_path = self.mapper.create_enhanced_allocation_map(comprehensive_data, save_path)
+            logger.info(f"Enhanced allocation map generated: {map_path}")
             
             return map_path
             

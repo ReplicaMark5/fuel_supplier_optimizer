@@ -18,3 +18,17 @@ Output Data/
 
 # Secrets
 google_places/Config.py
+
+# Generated files
+*.html
+optimization_allocation_map*.html
+optimization_map*.html
+
+# Large data files
+*.json
+!package*.json
+*.csv
+*.xlsx
+
+# Logs
+*.log

@@ -7,13 +7,10 @@ It visualizes customer depots, supplier depots, and allocation connections on a 
 South Africa and neighboring countries.
 """
 
-import sqlite3
-import pandas as pd
 import folium
 from folium import plugins
 import logging
 from typing import Dict, List, Any, Tuple
-from pathlib import Path
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -23,321 +20,523 @@ class OptimizationMapper:
     Creates interactive maps showing optimization allocation results.
     """
     
-    def __init__(self, db_path: str = "fuel_data.db"):
-        """Initialize mapper with database connection."""
-        self.db_path = db_path
-        self.customer_coords = {}
-        self.supplier_coords = {}
-        
+    def __init__(self):
+        """Initialize mapper for enhanced allocation mapping."""
         # Color schemes for different suppliers - using both hex and folium color names
         self.supplier_colors = {
-            'Supplier A': {'hex': '#FF0000', 'folium': 'red'},     # Red  
-            'Supplier C': {'hex': '#0066CC', 'folium': 'blue'},   # Blue
-            'Supplier D': {'hex': '#00AA00', 'folium': 'green'},  # Green
-            'Supplier F': {'hex': '#FF8000', 'folium': 'orange'}, # Orange
-            'Supplier G': {'hex': '#800080', 'folium': 'purple'}, # Purple
-            'Supplier H': {'hex': '#006600', 'folium': 'darkgreen'}, # Dark Green
-            'Supplier I': {'hex': '#FF00FF', 'folium': 'pink'},   # Magenta/Pink
-            'Supplier J': {'hex': '#00AAAA', 'folium': 'lightblue'}, # Cyan/Light Blue
-            'Supplier L': {'hex': '#800000', 'folium': 'darkred'} # Maroon/Dark Red
+            'Supplier A': {'hex': '#0A7368', 'folium': 'red'},     # Red  
+            'Supplier C': {'hex': '#BBBF99', 'folium': 'blue'},   # Blue
+            'Supplier D': {'hex': '#F2AC29', 'folium': 'green'},  # Green
+            'Supplier F': {'hex': '#BF2604', 'folium': 'orange'}, # Orange
+            'Supplier G': {'hex': '#489DAC', 'folium': 'purple'}, # Purple
+            'Supplier H': {'hex': '#CF7288', 'folium': 'darkgreen'}, # Dark Green
+            'Supplier I': {'hex': '#80035E', 'folium': 'pink'},   # Magenta/Pink
+            'Supplier J': {'hex': '#321A89', 'folium': 'lightblue'}, # Cyan/Light Blue
+            'Supplier L': {'hex': '#2F9928', 'folium': 'darkred'} # Maroon/Dark Red
         }
-        
-        # Load coordinates from database
-        self._load_coordinates()
     
-    def _load_coordinates(self):
-        """Load depot coordinates from database."""
-        logger.info("Loading depot coordinates from database...")
-        
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                # Load customer depot coordinates
-                customer_query = """
-                    SELECT Cust_Depot_PK, Cust_Depot_Name, Lats, Long, Country, Town
-                    FROM customer_depots
-                """
-                df_customer = pd.read_sql(customer_query, conn)
-                
-                for _, row in df_customer.iterrows():
-                    self.customer_coords[row['Cust_Depot_PK']] = {
-                        'name': row['Cust_Depot_Name'],
-                        'lat': row['Lats'],
-                        'lng': row['Long'],
-                        'country': row['Country'],
-                        'town': row['Town']
-                    }
-                
-                # Load supplier depot coordinates  
-                supplier_query = """
-                    SELECT sd.Supplier_Depot_PK, sd.Supply_Depot_Name, sd.supplier_lat, 
-                           sd.supplier_lng, sd.Country, sd.Supply_Depot_Location, s.Supplier_Name_
-                    FROM supplier_depots sd
-                    JOIN suppliers s ON sd.Supplier_FK = s.Supplier_PK
-                """
-                df_supplier = pd.read_sql(supplier_query, conn)
-                
-                for _, row in df_supplier.iterrows():
-                    self.supplier_coords[row['Supplier_Depot_PK']] = {
-                        'name': row['Supply_Depot_Name'],
-                        'lat': row['supplier_lat'],
-                        'lng': row['supplier_lng'],
-                        'country': row['Country'],
-                        'location': row['Supply_Depot_Location'],
-                        'supplier_name': row['Supplier_Name_']
-                    }
-                
-                logger.info(f"Loaded coordinates for {len(self.customer_coords)} customer depots and {len(self.supplier_coords)} supplier depots")
-                
-        except Exception as e:
-            logger.error(f"Failed to load coordinates: {e}")
-            raise
     
-    def create_allocation_map(self, optimization_results: Dict[str, Any], save_path: str = "optimization_allocation_map.html") -> str:
+    
+    def create_enhanced_allocation_map(self, comprehensive_data: Dict[str, Any], save_path: str = "enhanced_allocation_map.html") -> str:
         """
-        Create an interactive map showing optimization allocation results.
+        Create an enhanced interactive map showing all routes and optimization results.
         
         Args:
-            optimization_results: Results from optimizer containing allocations
+            comprehensive_data: Complete data package containing:
+                - optimization_results: Optimization results with allocations and capacity data
+                - all_route_costs: Complete precomputed cost dictionary
+                - capacity_limits: Supplier depot capacity limits
+                - optimization_metadata: Additional optimization info
             save_path: Path to save the HTML map file
             
         Returns:
             str: Path to the generated HTML map file
         """
-        logger.info("Creating optimization allocation map...")
+        logger.info("Creating enhanced optimization allocation map with all routes...")
         
-        # Calculate map center (South Africa region)
-        center_lat = -28.0
-        center_lng = 24.0
+        # Extract data from comprehensive package
+        self.optimization_results = comprehensive_data['optimization_results']
+        self.all_route_costs = comprehensive_data['all_route_costs']['costs']  # The cost dictionary
+        self.customer_depot_info = comprehensive_data['all_route_costs']['depots']
+        self.supplier_info = comprehensive_data['all_route_costs']['suppliers']
+        self.capacity_limits = comprehensive_data['capacity_limits']
+        self.optimization_metadata = comprehensive_data['optimization_metadata']
         
-        # Create base map
-        m = folium.Map(
-            location=[center_lat, center_lng],
+        # Store capacity utilization data if available
+        self.capacity_utilization = self.optimization_results.get('supplier_depot_utilization', {})
+        
+        logger.info(f"Enhanced mapper loaded:")
+        logger.info(f"  - {len(self.all_route_costs)} customer depots")
+        logger.info(f"  - {sum(len(routes) for routes in self.all_route_costs.values())} total route combinations")
+        logger.info(f"  - {len(self.optimization_results.get('allocations', []))} optimized allocations")
+        logger.info(f"  - {len(self.capacity_limits)} supplier depot capacity limits")
+        
+        # Process all routes and generate enhanced visualizations
+        self._process_all_routes()
+        
+        # Create enhanced map (for now, use existing method as base)
+        # This will be expanded in Steps 3-5
+        enhanced_map_path = self._create_enhanced_map(save_path)
+        
+        logger.info(f"Enhanced allocation map saved to: {enhanced_map_path}")
+        return enhanced_map_path
+    
+    def _process_all_routes(self):
+        """Process all possible routes from precomputed data and identify optimized ones."""
+        logger.info("Processing all possible routes from precomputed data...")
+        
+        self.all_routes = {}
+        self.optimized_routes = {}
+        
+        # Build lookup for optimized allocations (ensure string keys for consistent lookup)
+        optimized_lookup = {}
+        for allocation in self.optimization_results.get('allocations', []):
+            customer_id = str(allocation['customer_depot_id'])
+            supplier_depot_id = str(allocation['supplier_depot_id'])
+            key = (customer_id, supplier_depot_id)
+            optimized_lookup[key] = allocation
+        
+        # Process all possible routes from cost dictionary
+        total_routes = 0
+        for customer_id, supplier_depots in self.all_route_costs.items():
+            self.all_routes[customer_id] = {}
+            
+            for supplier_depot_id, cost_data in supplier_depots.items():
+                total_routes += 1
+                
+                # Extract all available cost options
+                available_costs = self._extract_cost_options(cost_data)
+                
+                # Check if this route was optimized (ensure string comparison)
+                route_key = (str(customer_id), str(supplier_depot_id))
+                is_optimized = route_key in optimized_lookup
+                optimized_info = optimized_lookup.get(route_key, {})
+                
+                route_info = {
+                    'customer_id': customer_id,
+                    'supplier_depot_id': supplier_depot_id,
+                    'supplier_name': cost_data.get('supplier_name', 'Unknown'),
+                    'distance_km': cost_data.get('distance_km', 0),
+                    'available_costs': available_costs,
+                    'is_optimized': is_optimized,
+                    'optimized_option': optimized_info.get('option_type') if is_optimized else None,
+                    'optimized_cost': optimized_info.get('cost_per_litre') if is_optimized else None
+                }
+                
+                self.all_routes[customer_id][supplier_depot_id] = route_info
+                
+                # Store optimized routes separately for easy access
+                if is_optimized:
+                    self.optimized_routes[route_key] = route_info
+        
+        logger.info(f"Processed {total_routes} total route combinations")
+        logger.info(f"Found {len(self.optimized_routes)} optimized routes")
+    
+    def _extract_cost_options(self, cost_data: Dict) -> Dict:
+        """Extract all cost options from precomputed cost data."""
+        available_costs = {}
+        
+        # Base cost options
+        base_options = ['coc_cash', 'coc_30', 'coc_45', 'coc_60', 'del_own', 'del_buy', 'del_rent']
+        for option in base_options:
+            if option in cost_data and cost_data[option] is not None:
+                available_costs[option] = cost_data[option]
+        
+        # RAC penalty options
+        rac_options = ['rac_coc_cash', 'rac_coc_30', 'rac_coc_45', 'rac_coc_60', 
+                      'rac_del_own', 'rac_del_buy', 'rac_del_rent']
+        rac_costs = {}
+        for option in rac_options:
+            if option in cost_data and cost_data[option] is not None:
+                rac_costs[option] = cost_data[option]
+        
+        if rac_costs:
+            available_costs['rac_options'] = rac_costs
+        
+        # Volume tier options (find dynamically)
+        tier_costs = {}
+        for key, value in cost_data.items():
+            if 'tier_' in key and value is not None:
+                tier_costs[key] = value
+        
+        if tier_costs:
+            available_costs['tier_options'] = tier_costs
+        
+        return available_costs
+    
+    def _create_enhanced_map(self, save_path: str) -> str:
+        """Create the enhanced map visualization with all routes in grey and optimized routes highlighted."""
+        logger.info("Creating enhanced visualization with grey routes and optimized overlays...")
+        
+        # Initialize map centered on South Africa with white theme
+        center_lat, center_lon = -28.0, 25.0
+        map_viz = folium.Map(
+            location=[center_lat, center_lon], 
             zoom_start=5,
-            tiles='OpenStreetMap'
+            tiles='CartoDB positron'  # White/light theme
         )
         
-        # Add additional tile layers for better visualization
-        folium.TileLayer(
-            'Stamen Terrain', 
-            name='Terrain',
-            attr='Map tiles by Stamen Design, CC BY 3.0'
-        ).add_to(m)
-        folium.TileLayer(
-            'CartoDB positron', 
-            name='Light',
-            attr='© OpenStreetMap contributors, © CartoDB'
-        ).add_to(m)
+        # Create feature groups for layer control
+        self.feature_groups = {}
         
-        # Track allocations for statistics
-        allocation_stats = {}
-        total_cost = 0
-        total_volume = 0
+        # Create base layers that are always visible
+        base_layer = folium.FeatureGroup(name='Base (Grey Routes & Customer Depots)')
         
-        # Process allocations from optimization results
-        allocations = optimization_results.get('allocations', [])
+        # Add grey routes and customer depots to base layer
+        self._add_grey_routes_to_map(base_layer)
+        self._add_customer_depot_markers(base_layer)
+        base_layer.add_to(map_viz)
         
-        if not allocations:
-            logger.warning("No allocations found in optimization results")
-            return save_path
+        # Create separate feature groups for each supplier
+        self._create_supplier_layers(map_viz)
         
-        # Add allocation connections (lines between customer and supplier depots)
-        for allocation in allocations:
-            customer_depot_id = allocation['customer_depot_id']
-            supplier_depot_id = allocation['supplier_depot_id']
-            supplier_name = allocation['supplier_name']
-            annual_volume = allocation['annual_volume']
-            cost_per_litre = allocation['cost_per_litre']
-            total_cost_allocation = allocation['total_cost']
-            option_type = allocation['option_type']
-            cost_type = allocation.get('cost_type', 'base')
-            
-            # Get coordinates
-            if customer_depot_id not in self.customer_coords:
-                logger.warning(f"Customer depot {customer_depot_id} coordinates not found")
-                continue
-                
-            if supplier_depot_id not in self.supplier_coords:
-                logger.warning(f"Supplier depot {supplier_depot_id} coordinates not found")
-                continue
-            
-            customer_coord = self.customer_coords[customer_depot_id]
-            supplier_coord = self.supplier_coords[supplier_depot_id]
-            
-            # Get supplier color (hex for lines)
-            supplier_color_info = self.supplier_colors.get(supplier_name, {'hex': '#000000', 'folium': 'black'})
-            supplier_color = supplier_color_info['hex']
-            
-            # Create connection line
-            line_coords = [
-                [customer_coord['lat'], customer_coord['lng']],
-                [supplier_coord['lat'], supplier_coord['lng']]
-            ]
-            
-            # Line thickness based on volume (scaled for visibility)
-            line_weight = max(2, min(8, annual_volume / 1000000))  # 2-8px based on millions of litres
-            
-            # Line opacity based on cost type
-            line_opacity = 0.9 if cost_type == 'rac_penalty' else 0.7 if cost_type == 'tier_enhanced' else 0.5
-            
-            # Create popup content for the connection line
-            popup_content = f"""
-            <b>Allocation Details</b><br>
-            Customer: {customer_coord['name']} ({customer_coord['town']})<br>
-            Supplier: {supplier_coord['name']} ({supplier_name})<br>
-            Option: {option_type}<br>
-            Cost Type: {cost_type}<br>
-            Volume: {annual_volume:,.0f} L<br>
-            Cost/L: R {cost_per_litre:.4f}<br>
-            Total Cost: R {total_cost_allocation:,.2f}
-            """
-            
-            folium.PolyLine(
-                locations=line_coords,
-                color=supplier_color,
-                weight=line_weight,
-                opacity=line_opacity,
-                popup=folium.Popup(popup_content, max_width=300)
-            ).add_to(m)
-            
-            # Track statistics
-            if supplier_name not in allocation_stats:
-                allocation_stats[supplier_name] = {
-                    'allocations': 0,
-                    'total_volume': 0,
-                    'total_cost': 0,
-                    'color': supplier_color  # hex color for legend
-                }
-            
-            allocation_stats[supplier_name]['allocations'] += 1
-            allocation_stats[supplier_name]['total_volume'] += annual_volume
-            allocation_stats[supplier_name]['total_cost'] += total_cost_allocation
-            
-            total_cost += total_cost_allocation
-            total_volume += annual_volume
+        # Create optimized routes layer
+        optimized_routes_layer = folium.FeatureGroup(name='🎯 Optimal Routes', show=True)
+        self._add_optimized_routes_to_map(optimized_routes_layer)
+        optimized_routes_layer.add_to(map_viz)
         
-        # Add customer depot markers (all black with different icons for allocated/unallocated)
-        for depot_id, coord in self.customer_coords.items():
-            # Find if this depot has allocations
-            depot_allocations = [a for a in allocations if a['customer_depot_id'] == depot_id]
-            
-            if depot_allocations:
-                # Depot has allocation - use black marker with filled circle
-                icon_name = 'circle'
-                allocation_info = depot_allocations[0]  # Should only be one allocation per depot
-                
-                popup_content = f"""
-                <b>Customer Depot: {coord['name']}</b><br>
-                Location: {coord['town']}, {coord['country']}<br>
-                <br><b>Allocation:</b><br>
-                Supplier: {allocation_info['supplier_name']}<br>
-                Volume: {allocation_info['annual_volume']:,.0f} L<br>
-                Cost: R {allocation_info['total_cost']:,.2f}
-                """
-            else:
-                # No allocation - use black marker with empty circle
-                icon_name = 'circle-o'
-                popup_content = f"""
-                <b>Customer Depot: {coord['name']}</b><br>
-                Location: {coord['town']}, {coord['country']}<br>
-                Status: <span style="color:red">No Allocation</span>
-                """
-            
-            folium.Marker(
-                location=[coord['lat'], coord['lng']],
-                popup=folium.Popup(popup_content, max_width=300),
-                tooltip=f"Customer: {coord['name']}",
-                icon=folium.Icon(color='black', icon=icon_name, prefix='fa')
-            ).add_to(m)
+        # Add layer control panel
+        folium.LayerControl(position='topright', collapsed=False).add_to(map_viz)
         
-        # Add marker clustering to handle overlapping points
-        marker_cluster = plugins.MarkerCluster().add_to(m)
-        
-        # Add supplier depot markers
-        for depot_id, coord in self.supplier_coords.items():
-            # Find allocations from this supplier depot
-            supplier_allocations = [a for a in allocations if a['supplier_depot_id'] == depot_id]
-            
-            supplier_name = coord['supplier_name']
-            supplier_color_info = self.supplier_colors.get(supplier_name, {'hex': '#000000', 'folium': 'black'})
-            folium_color = supplier_color_info['folium']
-            
-            # Add slight offset to reduce exact overlaps
-            lat_offset = 0.002 * ((depot_id % 5) - 2)  # Small random-ish offset
-            lng_offset = 0.002 * (((depot_id * 3) % 5) - 2)
-            
-            if supplier_allocations:
-                total_supplier_volume = sum(a['annual_volume'] for a in supplier_allocations)
-                total_supplier_cost = sum(a['total_cost'] for a in supplier_allocations)
-                
-                popup_content = f"""
-                <b>Supplier Depot: {coord['name']}</b><br>
-                Supplier: {supplier_name}<br>
-                Location: {coord['location']}, {coord['country']}<br>
-                <br><b>Allocations: {len(supplier_allocations)}</b><br>
-                Total Volume: {total_supplier_volume:,.0f} L<br>
-                Total Cost: R {total_supplier_cost:,.2f}
-                """
-            else:
-                popup_content = f"""
-                <b>Supplier Depot: {coord['name']}</b><br>
-                Supplier: {supplier_name}<br>
-                Location: {coord['location']}, {coord['country']}<br>
-                Status: <span style="color:gray">Not Used</span>
-                """
-            
-            folium.Marker(
-                location=[coord['lat'] + lat_offset, coord['lng'] + lng_offset],
-                popup=folium.Popup(popup_content, max_width=300),
-                tooltip=f"Supplier: {coord['name']} ({supplier_name})",
-                icon=folium.Icon(color=folium_color, icon='industry', prefix='fa')
-            ).add_to(marker_cluster)
-        
-        # Add legend for suppliers
-        legend_html = '''
-        <div style="position: fixed; 
-                    bottom: 50px; left: 50px; width: 250px; height: auto; 
-                    background-color: white; border:2px solid grey; z-index:9999; 
-                    font-size:14px; padding: 10px">
-        <b>Fuel Depot Allocation Results</b><br>
-        <hr style="margin:5px 0;">
-        '''
-        
-        # Add supplier legend entries
-        for supplier, stats in allocation_stats.items():
-            avg_cost = stats['total_cost'] / stats['total_volume'] if stats['total_volume'] > 0 else 0
-            legend_html += f'''
-            <div style="margin: 3px 0;">
-                <span style="color: {stats['color']}; font-size: 16px;">●</span> 
-                <b>{supplier}</b><br>
-                &nbsp;&nbsp;&nbsp;Depots: {stats['allocations']}<br>
-                &nbsp;&nbsp;&nbsp;Volume: {stats['total_volume']/1000000:.1f}M L<br>
-                &nbsp;&nbsp;&nbsp;Avg Cost: R {avg_cost:.3f}/L
-            </div>
-            '''
-        
-        legend_html += f'''
-        <hr style="margin:5px 0;">
-        <b>Total Volume:</b> {total_volume/1000000:.1f}M L<br>
-        <b>Total Cost:</b> R {total_cost:,.0f}<br>
-        <b>Avg Cost:</b> R {total_cost/total_volume if total_volume > 0 else 0:.4f}/L
-        </div>
-        '''
-        
-        m.get_root().html.add_child(folium.Element(legend_html))
-        
-        # Add layer control
-        folium.LayerControl().add_to(m)
-        
-        # Add fullscreen button
-        plugins.Fullscreen().add_to(m)
-        
-        # Add measure control for distances
-        plugins.MeasureControl().add_to(m)
-        
-        # Save map
-        m.save(save_path)
-        
-        logger.info(f"Optimization allocation map saved to: {save_path}")
-        logger.info(f"Map shows {len(allocations)} allocations across {len(allocation_stats)} suppliers")
+        # Save the enhanced map
+        map_viz.save(save_path)
+        logger.info(f"Enhanced map with layer control saved to: {save_path}")
         
         return save_path
+    
+    def _create_supplier_layers(self, map_viz):
+        """Create separate feature groups for each supplier's depots."""
+        logger.info("Creating supplier-specific layers...")
+        
+        # Group supplier depots by supplier name
+        suppliers_data = {}
+        for customer_routes in self.all_routes.values():
+            for supplier_depot_id, route_info in customer_routes.items():
+                supplier_name = route_info['supplier_name']
+                if supplier_name not in suppliers_data:
+                    suppliers_data[supplier_name] = []
+                if supplier_depot_id not in [item['depot_id'] for item in suppliers_data[supplier_name]]:
+                    suppliers_data[supplier_name].append({
+                        'depot_id': supplier_depot_id,
+                        'route_info': route_info
+                    })
+        
+        # Create a feature group for each supplier
+        for supplier_name in suppliers_data:
+            # Get supplier color for the layer name
+            supplier_color_info = self.supplier_colors.get(supplier_name, {'hex': '#000000'})
+            color_hex = supplier_color_info['hex']
+            
+            # Create feature group with colored bullet point
+            layer_name = f"🏭 {supplier_name}"
+            supplier_layer = folium.FeatureGroup(name=layer_name, show=True)
+            
+            # Add supplier depots to this layer
+            self._add_supplier_depots_to_layer(supplier_layer, suppliers_data[supplier_name])
+            
+            # Add layer to map
+            supplier_layer.add_to(map_viz)
+            self.feature_groups[supplier_name] = supplier_layer
+    
+    def _add_supplier_depots_to_layer(self, layer, supplier_depots_data):
+        """Add supplier depot markers to a specific layer."""
+        for depot_data in supplier_depots_data:
+            supplier_depot_id = depot_data['depot_id']
+            route_info = depot_data['route_info']
+            supplier_name = route_info['supplier_name']
+            
+            # Get supplier depot coordinates
+            supplier_depot_data = None
+            for customer_id, supplier_routes in self.all_route_costs.items():
+                if int(supplier_depot_id) in supplier_routes:
+                    supplier_depot_data = supplier_routes[int(supplier_depot_id)]
+                    break
+            
+            if not supplier_depot_data:
+                continue
+                
+            lat = supplier_depot_data.get('supplier_depot_lat')
+            lon = supplier_depot_data.get('supplier_depot_lon')
+            
+            if not lat or not lon:
+                continue
+            
+            # Get capacity information
+            capacity_limit = self.capacity_limits.get(str(supplier_depot_id), 0)
+            utilization_data = self.capacity_utilization.get(str(supplier_depot_id), {})
+            utilization_pct = utilization_data.get('utilization_percent', 0)
+            is_binding = utilization_data.get('is_binding_constraint', False)
+            
+            # Use supplier-specific hex color
+            supplier_color_info = self.supplier_colors.get(supplier_name, {'hex': '#000000'})
+            marker_color = supplier_color_info['hex']
+            
+            popup_content = f"""
+            <b>Supplier Depot {supplier_depot_id}</b><br>
+            Supplier: {supplier_name}<br>
+            Capacity Limit: {capacity_limit:,.0f} L<br>
+            Utilization: {utilization_pct:.1f}%<br>
+            Status: {'BINDING' if is_binding else 'Available'}<br>
+            Location: {lat:.4f}, {lon:.4f}
+            """
+            
+            # Add marker to the supplier's layer
+            folium.Marker(
+                location=[lat, lon],
+                popup=folium.Popup(popup_content, max_width=300),
+                tooltip=f"Supplier: {supplier_name}",
+                icon=plugins.BeautifyIcon(
+                    icon='industry',
+                    iconShape='marker',
+                    borderColor=marker_color,
+                    backgroundColor=marker_color,
+                    textColor='white'
+                )
+            ).add_to(layer)
+    
+    def _add_grey_routes_to_map(self, map_viz):
+        """Add all possible routes to map in grey color."""
+        logger.info("Adding all possible routes in grey...")
+        
+        grey_routes_added = 0
+        for customer_id, supplier_routes in self.all_routes.items():
+            # Get customer depot coordinates (convert to int for dictionary lookup)
+            customer_info = self.customer_depot_info.get(int(customer_id), {})
+            customer_lat = customer_info.get('latitude')
+            customer_lon = customer_info.get('longitude')
+            
+            if not customer_lat or not customer_lon:
+                continue
+                
+            for supplier_depot_id, route_info in supplier_routes.items():
+                # Skip routes that are optimized (they'll be overlaid in color)
+                if route_info['is_optimized']:
+                    continue
+                    
+                # Get supplier depot coordinates from the route cost data (convert to int for dictionary lookup)
+                supplier_depot_data = self.all_route_costs.get(int(customer_id), {}).get(int(supplier_depot_id), {})
+                supplier_lat = supplier_depot_data.get('supplier_depot_lat')
+                supplier_lon = supplier_depot_data.get('supplier_depot_lon')
+                
+                if not supplier_lat or not supplier_lon:
+                    continue
+                
+                # Create grey route line
+                line_coords = [[customer_lat, customer_lon], [supplier_lat, supplier_lon]]
+                
+                # Enhanced popup with all available cost options
+                popup_content = self._create_detailed_route_popup(
+                    customer_id, 
+                    supplier_depot_id, 
+                    route_info, 
+                    is_optimized=False
+                )
+                
+                try:
+                    folium.PolyLine(
+                        locations=line_coords,
+                        color='#808080',  # Grey color
+                        weight=1,         # Thicker line (was 1)
+                        opacity=0.3,      # More visible (was 0.3)
+                        popup=folium.Popup(popup_content, max_width=450)
+                    ).add_to(map_viz)
+                    
+                    grey_routes_added += 1
+                except Exception as e:
+                    logger.error(f"Failed to add grey route {customer_id}->{supplier_depot_id}: {e}")
+        
+        logger.info(f"Added {grey_routes_added} grey routes to map")
+    
+    def _create_detailed_route_popup(self, customer_id, supplier_depot_id, route_info, is_optimized=False):
+        """Create detailed popup content showing all available cost options."""
+        
+        # Get customer depot info
+        customer_info = self.customer_depot_info.get(int(customer_id), {})
+        customer_name = customer_info.get('name', f'Depot {customer_id}')
+        annual_volume = customer_info.get('annual_volume', 0)
+        
+        # Get detailed cost data from the cost dictionary
+        cost_data = self.all_route_costs.get(int(customer_id), {}).get(int(supplier_depot_id), {})
+        
+        # Start building popup content
+        status = "OPTIMIZED ROUTE" if is_optimized else "Potential Route (Not Selected)"
+        popup_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 400px;">
+            <h4 style="margin: 0 0 10px 0; color: {'#d63031' if is_optimized else '#636e72'};">
+                {status}
+            </h4>
+            
+            <div style="margin-bottom: 10px;">
+                <strong>Route:</strong> {customer_name} → {route_info['supplier_name']}<br>
+                <strong>Distance:</strong> {route_info['distance_km']:.1f} km<br>
+                <strong>Annual Volume:</strong> {annual_volume:,.0f} L
+            </div>
+            
+            <div style="border-top: 1px solid #ddd; padding-top: 10px;">
+                <strong>Available Cost Options:</strong><br>
+        """
+        
+        # Add base cost options
+        base_options = {
+            'coc_cash': 'COC Cash',
+            'coc_30': 'COC NET30', 
+            'coc_45': 'COC NET45',
+            'coc_60': 'COC NET60',
+            'del_own': 'DEL Own Equipment',
+            'del_buy': 'DEL Buy Equipment', 
+            'del_rent': 'DEL Rent Equipment'
+        }
+        
+        popup_content += "<div style='margin: 5px 0;'><em>Base Options:</em></div>"
+        for option_key, option_name in base_options.items():
+            if option_key in cost_data and cost_data[option_key] is not None:
+                cost_per_litre = cost_data[option_key]
+                annual_cost = cost_per_litre * annual_volume
+                popup_content += f"""
+                <div style="margin-left: 10px; font-size: 0.9em;">
+                    • {option_name}: <strong>R {cost_per_litre:.4f}/L</strong> 
+                    (R {annual_cost:,.0f}/year)
+                </div>
+                """
+        
+        # Add RAC penalty options if available
+        rac_options = {
+            'rac_coc_cash': 'RAC COC Cash',
+            'rac_coc_30': 'RAC COC NET30',
+            'rac_coc_45': 'RAC COC NET45', 
+            'rac_coc_60': 'RAC COC NET60',
+            'rac_del_own': 'RAC DEL Own',
+            'rac_del_buy': 'RAC DEL Buy',
+            'rac_del_rent': 'RAC DEL Rent'
+        }
+        
+        rac_found = False
+        for option_key in rac_options.keys():
+            if option_key in cost_data and cost_data[option_key] is not None:
+                if not rac_found:
+                    popup_content += "<div style='margin: 10px 0 5px 0;'><em>RAC Penalty Options:</em></div>"
+                    rac_found = True
+                cost_per_litre = cost_data[option_key]
+                annual_cost = cost_per_litre * annual_volume
+                popup_content += f"""
+                <div style="margin-left: 10px; font-size: 0.9em; color: #e17055;">
+                    • {rac_options[option_key]}: <strong>R {cost_per_litre:.4f}/L</strong>
+                    (R {annual_cost:,.0f}/year)
+                </div>
+                """
+        
+        # Add volume tier options if available
+        tier_options = {}
+        for key, value in cost_data.items():
+            if 'tier_' in key and value is not None:
+                tier_options[key] = value
+        
+        if tier_options:
+            popup_content += "<div style='margin: 10px 0 5px 0;'><em>Volume Tier Options:</em></div>"
+            for tier_key, cost_per_litre in tier_options.items():
+                # Format tier name nicely
+                tier_display = tier_key.replace('_tier_', ' Tier ').replace('_', ' ').title()
+                annual_cost = cost_per_litre * annual_volume
+                popup_content += f"""
+                <div style="margin-left: 10px; font-size: 0.9em; color: #00b894;">
+                    • {tier_display}: <strong>R {cost_per_litre:.4f}/L</strong>
+                    (R {annual_cost:,.0f}/year)
+                </div>
+                """
+        
+        popup_content += """
+            </div>
+        </div>
+        """
+        
+        return popup_content
+    
+    def _add_customer_depot_markers(self, map_viz):
+        """Add customer depot markers to the map."""
+        logger.info("Adding customer depot markers...")
+        
+        for customer_id, customer_info in self.customer_depot_info.items():
+            lat = customer_info.get('latitude')
+            lon = customer_info.get('longitude')
+            
+            if not lat or not lon:
+                logger.warning(f"No coordinates found for customer depot {customer_id}")
+                continue
+            
+            annual_volume = customer_info.get('annual_volume', 0)
+            fuel_zone = customer_info.get('fuel_zone', 'Unknown')
+            
+            popup_content = f"""
+            <b>Customer Depot {customer_id}</b><br>
+            Annual Volume: {annual_volume:,.0f} L<br>
+            Fuel Zone: {fuel_zone}<br>
+            Location: {lat:.4f}, {lon:.4f}
+            """
+            
+            # Use black folium Marker for customer depots
+            folium.Marker(
+                location=[lat, lon],
+                popup=folium.Popup(popup_content, max_width=250),
+                tooltip=f"Customer Depot {customer_id}",
+                icon=folium.Icon(color='black', icon='home')
+            ).add_to(map_viz)
+    
+    
+    def _add_optimized_routes_to_map(self, map_viz):
+        """Add optimized routes in supplier-specific colors."""
+        logger.info("Adding optimized routes in supplier colors...")
+        
+        # Use the same color mapping as supplier depot pins
+        
+        optimized_routes_added = 0
+        for route_key, route_info in self.optimized_routes.items():
+            customer_id, supplier_depot_id = route_key
+            
+            # Get coordinates (convert to int for dictionary lookup)
+            customer_info = self.customer_depot_info.get(int(customer_id), {})
+            customer_lat = customer_info.get('latitude')
+            customer_lon = customer_info.get('longitude')
+            
+            supplier_depot_data = self.all_route_costs.get(int(customer_id), {}).get(int(supplier_depot_id), {})
+            supplier_lat = supplier_depot_data.get('supplier_depot_lat')
+            supplier_lon = supplier_depot_data.get('supplier_depot_lon')
+            
+            if not all([customer_lat, customer_lon, supplier_lat, supplier_lon]):
+                continue
+            
+            # Get supplier color using the same mapping as depot pins
+            supplier_name = route_info['supplier_name']
+            supplier_color_info = self.supplier_colors.get(supplier_name, {'hex': '#000000', 'folium': 'black'})
+            supplier_color = supplier_color_info['hex']  # Use hex color for lines
+            
+            line_coords = [[customer_lat, customer_lon], [supplier_lat, supplier_lon]]
+            
+            # Enhanced popup for optimized routes
+            annual_volume = customer_info.get('annual_volume', 0)
+            total_cost = annual_volume * route_info['optimized_cost'] if route_info['optimized_cost'] else 0
+            
+            popup_content = f"""
+            <b>OPTIMIZED ROUTE</b><br>
+            <b>Customer Depot {customer_id} → Supplier Depot {supplier_depot_id}</b><br>
+            Supplier: {supplier_name}<br>
+            Option: {route_info['optimized_option']}<br>
+            Distance: {route_info['distance_km']:.1f} km<br>
+            Volume: {annual_volume:,.0f} L<br>
+            Cost/L: R {route_info['optimized_cost']:.4f}<br>
+            Total Cost: R {total_cost:,.2f}
+            """
+            
+            try:
+                folium.PolyLine(
+                    locations=line_coords,
+                    color=supplier_color,
+                    weight=3,         # Even thicker line for optimized routes 
+                    opacity=0.8,      # Very opaque 
+                    popup=folium.Popup(popup_content, max_width=300)
+                ).add_to(map_viz)
+                
+                optimized_routes_added += 1
+            except Exception as e:
+                logger.error(f"Failed to add optimized route {customer_id}->{supplier_depot_id}: {e}")
+        
+        logger.info(f"Added {optimized_routes_added} optimized routes to map")

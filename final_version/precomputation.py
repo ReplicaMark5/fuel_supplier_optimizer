@@ -77,6 +77,65 @@ class FuelOptimizationPrecomputation:
                 6: "Supplier H", 7: "Supplier I", 8: "Supplier J", 9: "Supplier L"
             }
     
+    def _load_coordinates_from_database(self) -> Dict[str, Dict[int, Dict[str, Any]]]:
+        """
+        Load depot coordinates from database for enhanced mapping.
+        
+        Returns:
+            Dict: Contains customer_depots and supplier_depots coordinate data
+        """
+        logger.info("Loading depot coordinates from database...")
+        
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                # Load customer depot coordinates
+                customer_query = """
+                    SELECT Cust_Depot_PK, Cust_Depot_Name, Lats, Long, Country, Town
+                    FROM customer_depots
+                """
+                df_customer = pd.read_sql(customer_query, conn)
+                
+                customer_coords = {}
+                for _, row in df_customer.iterrows():
+                    customer_coords[int(row['Cust_Depot_PK'])] = {
+                        'name': row['Cust_Depot_Name'],
+                        'latitude': float(row['Lats']),
+                        'longitude': float(row['Long']),
+                        'country': row['Country'],
+                        'town': row['Town']
+                    }
+                
+                # Load supplier depot coordinates  
+                supplier_query = """
+                    SELECT sd.Supplier_Depot_PK, sd.Supply_Depot_Name, sd.supplier_lat, 
+                           sd.supplier_lng, sd.Country, sd.Supply_Depot_Location, s.Supplier_Name_
+                    FROM supplier_depots sd
+                    JOIN suppliers s ON sd.Supplier_FK = s.Supplier_PK
+                """
+                df_supplier = pd.read_sql(supplier_query, conn)
+                
+                supplier_coords = {}
+                for _, row in df_supplier.iterrows():
+                    supplier_coords[int(row['Supplier_Depot_PK'])] = {
+                        'name': row['Supply_Depot_Name'],
+                        'latitude': float(row['supplier_lat']),
+                        'longitude': float(row['supplier_lng']),
+                        'country': row['Country'],
+                        'location': row['Supply_Depot_Location'],
+                        'supplier_name': row['Supplier_Name_']
+                    }
+                
+                logger.info(f"Loaded coordinates for {len(customer_coords)} customer depots and {len(supplier_coords)} supplier depots")
+                
+                return {
+                    'customer_depots': customer_coords,
+                    'supplier_depots': supplier_coords
+                }
+                
+        except sqlite3.Error as e:
+            logger.error(f"Failed to load coordinates from database: {e}")
+            return {'customer_depots': {}, 'supplier_depots': {}}
+    
     def load_data_from_database(self) -> pd.DataFrame:
         """
         Load and join all necessary tables from the reorganized database.
@@ -656,12 +715,13 @@ class FuelOptimizationPrecomputation:
         logger.info(f"Calculated {tier_cost_count} volume tier enhanced cost options")
         return df
     
-    def build_cost_dictionary(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def build_cost_dictionary(self, df: pd.DataFrame, coordinates: Dict[str, Dict[int, Dict[str, Any]]] = None) -> Dict[str, Any]:
         """
         Build the base cost dictionary structure for optimizer consumption.
         
         Args:
             df: Data with all cost calculations
+            coordinates: Optional coordinate data for depots and suppliers
             
         Returns:
             Dict: Nested cost dictionary by depot -> supplier -> option
@@ -742,13 +802,33 @@ class FuelOptimizationPrecomputation:
             cost_dict[depot_id][supplier_depot_id]['supplier_depot_name'] = row.get('Supply_Depot_Name', f"Depot {supplier_depot_id}")
             cost_dict[depot_id][supplier_depot_id]['distance_km'] = row.get('One_Way_Dist', None)
             
+            # Add supplier depot coordinates if available
+            if coordinates and 'supplier_depots' in coordinates:
+                coord_data = coordinates['supplier_depots'].get(supplier_depot_id, {})
+                if coord_data:
+                    cost_dict[depot_id][supplier_depot_id]['supplier_depot_lat'] = coord_data.get('latitude')
+                    cost_dict[depot_id][supplier_depot_id]['supplier_depot_lon'] = coord_data.get('longitude')
+                    cost_dict[depot_id][supplier_depot_id]['supplier_depot_country'] = coord_data.get('country')
+                    cost_dict[depot_id][supplier_depot_id]['supplier_depot_location'] = coord_data.get('location')
+            
             # Build supporting dictionaries
             if depot_id not in depot_dict:
-                depot_dict[depot_id] = {
+                depot_info = {
                     'annual_volume': row['depot_annual_volume'],
                     'name': row['customer_depot_name'],
                     'fuel_zone': row['customer_fuel_zone']
                 }
+                
+                # Add coordinates if available
+                if coordinates and 'customer_depots' in coordinates:
+                    coord_data = coordinates['customer_depots'].get(depot_id, {})
+                    if coord_data:
+                        depot_info['latitude'] = coord_data.get('latitude')
+                        depot_info['longitude'] = coord_data.get('longitude')
+                        depot_info['country'] = coord_data.get('country')
+                        depot_info['town'] = coord_data.get('town')
+                
+                depot_dict[depot_id] = depot_info
             
             if supplier_id not in supplier_dict:
                 supplier_name = row.get('supplier_name', f"Supplier {supplier_id}")
@@ -810,8 +890,11 @@ class FuelOptimizationPrecomputation:
         # Step 6: Calculate volume tier enhanced costs
         df = self.calculate_volume_tier_enhanced_costs(df)
         
-        # Step 7: Build cost dictionary
-        cost_data = self.build_cost_dictionary(df)
+        # Step 7: Load coordinates for enhanced mapping
+        coordinates = self._load_coordinates_from_database()
+        
+        # Step 8: Build cost dictionary with coordinates
+        cost_data = self.build_cost_dictionary(df, coordinates)
         
         logger.info("Base precomputation completed successfully!")
         return cost_data
@@ -1274,14 +1357,14 @@ class FuelOptimizationPrecomputation:
     
     def run_complete_precomputation(self) -> Dict[str, Any]:
         """
-        Execute the complete precomputation pipeline including volume tiers.
+        Execute the complete precomputation pipeline including volume tiers and coordinates.
         
         Returns:
-            Dict: Complete cost dictionary with volume tier scenarios
+            Dict: Complete cost dictionary with volume tier scenarios and coordinate data
         """
         logger.info("Starting complete precomputation pipeline with volume tiers...")
         
-        # Run base precomputation (now includes volume tier enhanced costs)
+        # Run base precomputation (now includes volume tier enhanced costs and coordinates)
         complete_cost_data = self.run_base_precomputation()
         
         logger.info("Complete precomputation pipeline finished successfully!")
