@@ -132,9 +132,19 @@ rac_del_rent_cost_pv = ((rtl_wholesale_per_litre + transport_charge_excl_zone + 
 ```
 
 ## Volume Tier Enhanced Costs
-Volume tier enhanced costs apply additional rebates when volume commitments are met. Two combination rules are supported:
-- **"additive_to_base"**: Volume tier rebate is added to base rebate  
-- **"override_base"**: Volume tier rebate replaces base rebate entirely
+Volume tier enhanced costs apply additional rebates when volume commitments are met. These are generated dynamically from `supplier_contract_configurations` where `contract_type` is `"volume_tier_rewards"`.
+
+**Implementation supports both combination rules**:
+- **"additive_to_base"**: Volume tier rebate is added to base rebate (Supplier C)
+- **"override_base"**: Volume tier rebate replaces base rebate entirely (Supplier I)
+
+**Processing Logic**:
+1. Iterate through each contract configuration with `contract_type` = `"volume_tier_rewards"`
+2. Filter suppliers by name matching `suppliers` list in config
+3. Check transport modes (`COC` and/or `DEL`) from `transport_modes` field
+4. Process each reward band with non-zero rebate values
+5. Apply appropriate combination rule (`rebate_combination` field)
+6. Generate dynamic column names using volume thresholds
 
 ### Volume Tier COC Options
 
@@ -142,16 +152,17 @@ Volume tier enhanced costs apply additional rebates when volume commitments are 
 ```
 coc_cash_tier_X = (rtl_wholesale_per_litre - COC_reb_pl_cash) + transport_cost_per_litre 
 ```
-- Volume tier rebates typically don't apply to cash options (immediate payment)
+- Volume tier rebates don't apply to cash options in current implementation (same as base cost)
+- Generated for all combination rules but uses only base rebate
 
 #### COC NET30 with Volume Tier
 
-**Additive to Base**:
+**Additive to Base (`"additive_to_base"`)** - Used by Supplier C:
 ```
 coc_30_tier_X = ((rtl_wholesale_per_litre - (COC_reb_pl_30 + coc_tier_rebate)) / pv_net30) + transport_cost_per_litre 
 ```
 
-**Override Base**:
+**Override Base (`"override_base"`)** - Used by Supplier I:
 ```
 coc_30_tier_X = ((rtl_wholesale_per_litre - coc_tier_rebate) / pv_net30) + transport_cost_per_litre 
 ```
@@ -171,43 +182,46 @@ coc_60_tier_X = ((rtl_wholesale_per_litre - COC_reb_pl_60) / pv_net60) + transpo
 
 #### DEL Own Equipment with Volume Tier
 
-**Additive to Base**:
+**Additive to Base (`"additive_to_base"`)** - Used by Supplier C:
 ```
 del_own_tier_X = ((rtl_wholesale_per_litre - (DEL_reb_pl_30 + del_tier_rebate + equip_fin_pl_30 + equip_main_pl_30)) / pv_net30) + 
                  cost_owned_equip_pv 
 ```
 
-**Override Base**:
+**Override Base (`"override_base"`)** - Used by Supplier I:
 ```
 del_own_tier_X = ((rtl_wholesale_per_litre - (del_tier_rebate + equip_fin_pl_30 + equip_main_pl_30)) / pv_net30) + 
                  cost_owned_equip_pv 
 ```
+- Equipment rebates (`equip_fin_pl_30`, `equip_main_pl_30`) are preserved in override mode
 
 #### DEL Buy Equipment with Volume Tier
 
-**Additive to Base**:
+**Additive to Base (`"additive_to_base"`)** - Used by Supplier C:
 ```
 del_buy_tier_X = ((rtl_wholesale_per_litre - (DEL_reb_pl_30 + del_tier_rebate + equip_fin_pl_30 + equip_main_pl_30)) / pv_net30) + 
                  cost_buy_equip_pv 
 ```
 
-**Override Base**:
+**Override Base (`"override_base"`)** - Used by Supplier I:
 ```
 del_buy_tier_X = ((rtl_wholesale_per_litre - (del_tier_rebate + equip_fin_pl_30 + equip_main_pl_30)) / pv_net30) + 
                  cost_buy_equip_pv 
 ```
+- Equipment rebates (`equip_fin_pl_30`, `equip_main_pl_30`) are preserved in override mode
 
 #### DEL Rent Equipment with Volume Tier
 
-**Additive to Base**:
+**Additive to Base (`"additive_to_base"`)** - Used by Supplier C:
 ```
 del_rent_tier_X = ((rtl_wholesale_per_litre - (DEL_reb_pl_30 + del_tier_rebate)) / pv_net30)
 ```
 
-**Override Base**:
+**Override Base (`"override_base"`)** - Used by Supplier I:
 ```
 del_rent_tier_X = ((rtl_wholesale_per_litre - del_tier_rebate) / pv_net30)
 ```
+- No equipment costs for rental option in either mode
 
 Where:
 - `del_tier_rebate`: Volume tier rebate from reward band (R/litre)
@@ -218,6 +232,16 @@ Where:
 Tier options are named using the pattern:
 - `{base_option}_tier_{min_volume}M_to_{max_volume}M` (e.g., `coc_30_tier_15M_to_20M`)
 - `{base_option}_tier_{min_volume}M_plus` (e.g., `del_own_tier_25M_plus`)
+
+**Implementation Details**:
+- Generated dynamically from `reward_bands` in supplier contract configurations
+- Volume thresholds divided by 1,000,000 to create "M" (million) suffix
+- Band suffix created using: `f"_{min_volume//1000000}M_to_{max_volume//1000000}M"`
+- For unlimited tiers: `f"_{min_volume//1000000}M_plus"`
+
+**Current Configuration Examples**:
+- **Supplier C**: 15M_to_20M, 20M_to_25M, 25M_plus (additive_to_base)
+- **Supplier I**: 10M_to_20M, 20M_to_30M, 30M_plus (override_base, DEL only)
 
 ## Availability Rules
 
@@ -238,9 +262,15 @@ Tier options are named using the pattern:
 - Use penalty pricing (no rebates)
 
 ### Volume Tier Options
-- Only calculated for supplier-depot combinations matching tier configuration filters
-- Require volume commitments to be met in optimization
-- Support two combination rules: "additive_to_base" and "override_base"
+- Only calculated for suppliers matching `supplier_contract_configurations` where `contract_type` is `"volume_tier_rewards"`
+- Filtered by supplier name matching `suppliers` list in contract configuration
+- Transport modes filtered by `transport_modes` list (`COC` and/or `DEL`)
+- Only reward bands with non-zero rebate values are processed
+- Volume tier activation requires meeting minimum volume commitments in optimization
+- **Current Implementation**: Supports both `"additive_to_base"` and `"override_base"` combination rules
+- **Supplier-Specific Rules**:
+  - Supplier C: `additive_to_base` for COC and DEL
+  - Supplier I: `override_base` for DEL only
 
 ## Configuration Dependencies
 
@@ -267,4 +297,7 @@ Tier options are named using the pattern:
 3. **Volume Tier Logic**: Reward pricing when volume commitments met (lower costs)
 4. **Payment Terms**: COC supports multiple payment terms, DEL is always NET30
 5. **Equipment Options**: DEL has three equipment scenarios (own, buy, rent) with different cost structures
-6. **Currency**: All calculations in South African Rands, input prices converted from cents where needed
+6. **Volume Tier Processing**: Generated dynamically from supplier contract configurations with reward bands
+7. **Combination Rules**: Both "additive_to_base" and "override_base" fully implemented and tested
+8. **Supplier-Specific Logic**: Different suppliers use different combination rules as configured
+9. **Currency**: All calculations in South African Rands, input prices converted from cents where needed

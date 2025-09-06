@@ -267,13 +267,17 @@ class OptimizationMapper:
             utilization_pct = utilization_data.get('utilization_percent', 0)
             is_binding = utilization_data.get('is_binding_constraint', False)
             
+            # Get depot name from route cost data (if available)
+            depot_name = f'Depot {supplier_depot_id}'
+            if supplier_depot_data and 'supplier_depot_name' in supplier_depot_data:
+                depot_name = supplier_depot_data['supplier_depot_name']
+            
             # Use supplier-specific hex color
             supplier_color_info = self.supplier_colors.get(supplier_name, {'hex': '#000000'})
             marker_color = supplier_color_info['hex']
             
             popup_content = f"""
-            <b>Supplier Depot {supplier_depot_id}</b><br>
-            Supplier: {supplier_name}<br>
+            <b>{supplier_name} Depot {supplier_depot_id} ({depot_name})</b><br>
             Capacity Limit: {capacity_limit:,.0f} L<br>
             Utilization: {utilization_pct:.1f}%<br>
             Status: {'BINDING' if is_binding else 'Available'}<br>
@@ -284,7 +288,7 @@ class OptimizationMapper:
             folium.Marker(
                 location=[lat, lon],
                 popup=folium.Popup(popup_content, max_width=300),
-                tooltip=f"Supplier: {supplier_name}",
+                tooltip=f"{supplier_name} Depot {supplier_depot_id}",
                 icon=plugins.BeautifyIcon(
                     icon='industry',
                     iconShape='marker',
@@ -358,6 +362,9 @@ class OptimizationMapper:
         # Get detailed cost data from the cost dictionary
         cost_data = self.all_route_costs.get(int(customer_id), {}).get(int(supplier_depot_id), {})
         
+        # Get supplier depot name from cost data
+        supplier_depot_name = cost_data.get('supplier_depot_name', f'Depot {supplier_depot_id}')
+        
         # Start building popup content
         status = "OPTIMIZED ROUTE" if is_optimized else "Potential Route (Not Selected)"
         popup_content = f"""
@@ -367,7 +374,7 @@ class OptimizationMapper:
             </h4>
             
             <div style="margin-bottom: 10px;">
-                <strong>Route:</strong> {customer_name} → {route_info['supplier_name']}<br>
+                <strong>Route:</strong> {customer_name} → {route_info['supplier_name']} Depot {supplier_depot_id} ({supplier_depot_name})<br>
                 <strong>Distance:</strong> {route_info['distance_km']:.1f} km<br>
                 <strong>Annual Volume:</strong> {annual_volume:,.0f} L
             </div>
@@ -515,10 +522,12 @@ class OptimizationMapper:
             annual_volume = customer_info.get('annual_volume', 0)
             total_cost = annual_volume * route_info['optimized_cost'] if route_info['optimized_cost'] else 0
             
+            # Get supplier depot name from cost data
+            supplier_depot_name = supplier_depot_data.get('supplier_depot_name', f'Depot {supplier_depot_id}')
+            
             popup_content = f"""
             <b>OPTIMIZED ROUTE</b><br>
-            <b>Customer Depot {customer_id} → Supplier Depot {supplier_depot_id}</b><br>
-            Supplier: {supplier_name}<br>
+            <b>Customer Depot {customer_id} → {supplier_name} Depot {supplier_depot_id} ({supplier_depot_name})</b><br>
             Option: {route_info['optimized_option']}<br>
             Distance: {route_info['distance_km']:.1f} km<br>
             Volume: {annual_volume:,.0f} L<br>

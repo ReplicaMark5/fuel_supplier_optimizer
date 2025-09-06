@@ -11,6 +11,10 @@ Equipment
   ---> add reorder level for these customer tanks
   ---> BASICALLY IF CUSTOMER DEPOT TANK CAPACITY IS LOWER THAN TANKER CAPACITY THEN THIS FORMULA [trans_cost_pl = ((One_Way_Dist)(2)(tanker_cost_per_km))/tanker_cap] MUST USE THE (tank capacity - reorder level)
 
+- Add equipment availability in the config for each customer depot... (for DEL options and might have to adjust to include COC options as well)
+
+
+-Look at implementing (static VS dynamic) and/or (deterministic Vs stochastic) [eg. variable demand volume, variable fuel price etc...][look at stochastic programming and robust optimization]
 
 - Implement all unit vs incremental volume tiers 
 
@@ -27,9 +31,10 @@ Could look at adding:
 
 CONSTRAINTS
 
-- Max supplier available capcity per supply depot or per supplier 
 - Max number of customer supplier contracts 
 - Implement, constraints that limit one supplier contract to one payment term(or some sort of constraint that is to do with payment term)
+
+- Cross-boarder trade constraint or penalty
 
 
 

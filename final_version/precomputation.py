@@ -674,6 +674,41 @@ class FuelOptimizationPrecomputation:
                                 ) + row['trans_cost_pl']
                                 
                                 tier_cost_count += 4
+                            
+                            elif rebate_combination == 'override_base':
+                                # COC Cash - only base rebate (volume tier rebates don't apply to cash)
+                                tier_col = f'coc_cash_tier{band_suffix}'
+                                if tier_col not in df.columns:
+                                    df[tier_col] = np.nan
+                                df.loc[df.index[_], tier_col] = (
+                                    row['rtl_wholesale_per_litre'] - row['COC_reb_pl_cash']
+                                ) + row['trans_cost_pl']
+                                
+                                # COC NET30 - tier rebate overrides base rebate
+                                tier_col = f'coc_30_tier{band_suffix}'
+                                if tier_col not in df.columns:
+                                    df[tier_col] = np.nan
+                                df.loc[df.index[_], tier_col] = (
+                                    (row['rtl_wholesale_per_litre'] - coc_rebate) / pv_factors['net30']
+                                ) + row['trans_cost_pl']
+                                
+                                # COC NET45 - only base rebate (tier rebate is NET30 terms)
+                                tier_col = f'coc_45_tier{band_suffix}'  
+                                if tier_col not in df.columns:
+                                    df[tier_col] = np.nan
+                                df.loc[df.index[_], tier_col] = (
+                                    (row['rtl_wholesale_per_litre'] - row['COC_reb_pl_45']) / pv_factors['net45']
+                                ) + row['trans_cost_pl']
+                                
+                                # COC NET60 - only base rebate (tier rebate is NET30 terms)
+                                tier_col = f'coc_60_tier{band_suffix}'
+                                if tier_col not in df.columns:
+                                    df[tier_col] = np.nan
+                                df.loc[df.index[_], tier_col] = (
+                                    (row['rtl_wholesale_per_litre'] - row['COC_reb_pl_60']) / pv_factors['net60']
+                                ) + row['trans_cost_pl']
+                                
+                                tier_cost_count += 4
                     
                     # DEL Volume Tier Enhanced Costs
                     if 'DEL' in transport_modes and del_rebate > 0:
@@ -708,6 +743,37 @@ class FuelOptimizationPrecomputation:
                                     df[tier_col] = np.nan
                                 df.loc[df.index[_], tier_col] = (
                                     (row['rtl_wholesale_per_litre'] - (row['DEL_reb_pl_30'] + del_rebate)) / pv_factors['net30']
+                                )
+                                
+                                tier_cost_count += 3
+                            
+                            elif rebate_combination == 'override_base':
+                                # DEL Own Equipment - tier rebate overrides base rebate, keep equipment rebates
+                                if (pd.notna(row['equip_fin_pl_30']) and pd.notna(row['equip_main_pl_30'])):
+                                    tier_col = f'del_own_tier{band_suffix}'
+                                    if tier_col not in df.columns:
+                                        df[tier_col] = np.nan
+                                    df.loc[df.index[_], tier_col] = (
+                                        (row['rtl_wholesale_per_litre'] - 
+                                         (del_rebate + row['equip_fin_pl_30'] + row['equip_main_pl_30'])) / pv_factors['net30']
+                                    ) + cost_owned_equip_pv
+                                
+                                # DEL Buy Equipment - tier rebate overrides base rebate, keep equipment rebates
+                                if (pd.notna(row['equip_fin_pl_30']) and pd.notna(row['equip_main_pl_30'])):
+                                    tier_col = f'del_buy_tier{band_suffix}'
+                                    if tier_col not in df.columns:
+                                        df[tier_col] = np.nan
+                                    df.loc[df.index[_], tier_col] = (
+                                        (row['rtl_wholesale_per_litre'] - 
+                                         (del_rebate + row['equip_fin_pl_30'] + row['equip_main_pl_30'])) / pv_factors['net30']
+                                    ) + cost_buy_equip_pv
+                                
+                                # DEL Rent Equipment - tier rebate overrides base rebate
+                                tier_col = f'del_rent_tier{band_suffix}'
+                                if tier_col not in df.columns:
+                                    df[tier_col] = np.nan
+                                df.loc[df.index[_], tier_col] = (
+                                    (row['rtl_wholesale_per_litre'] - del_rebate) / pv_factors['net30']
                                 )
                                 
                                 tier_cost_count += 3
@@ -898,95 +964,6 @@ class FuelOptimizationPrecomputation:
         
         logger.info("Base precomputation completed successfully!")
         return cost_data
-    
-    def calculate_volume_tier_rebate(self, volume_litres: float, tier_config: Dict[str, Any]) -> Dict[str, float]:
-        """
-        Calculate volume tier rebate for a given volume and tier configuration.
-        
-        Args:
-            volume_litres: Annual volume in litres
-            tier_config: Volume tier configuration from config file
-            
-        Returns:
-            Dict with rebate calculation details
-        """
-        bands = tier_config['bands']
-        
-        total_rebate = 0.0
-        applicable_bands = []
-        
-        if logic == 'stacked':
-            # Stacked/incremental logic: different rebates for different volume ranges
-            processed_volume = 0
-            
-            for band in bands:
-                min_vol = band['min_volume']
-                max_vol = band['max_volume'] or float('inf')
-                band_rebate = band['rebate']
-                
-                # Skip bands that don't apply to this volume
-                if volume_litres < min_vol:
-                    break
-                    
-                # For stacked logic, determine volume processed in this band
-                # Treat max_vol as exclusive upper bound (15M should qualify for 15M+ tier)
-                if max_vol != float('inf') and volume_litres >= max_vol:
-                    # If volume reaches or exceeds max_vol, process up to (but not including) max_vol
-                    band_upper_limit = max_vol
-                else:
-                    # If volume is below max_vol, process all remaining volume
-                    band_upper_limit = volume_litres
-                    
-                volume_in_band = band_upper_limit - max(processed_volume, min_vol)
-                volume_in_band = max(0, volume_in_band)
-                
-                if volume_in_band > 0:
-                    band_contribution = volume_in_band * band_rebate  # Rebates are in rands, not cents
-                    total_rebate += band_contribution
-                    
-                    applicable_bands.append({
-                        'min_volume': min_vol,
-                        'max_volume': max_vol,
-                        'volume_in_band': volume_in_band,
-                        'rebate_cents': band_rebate,
-                        'contribution': band_contribution
-                    })
-                    
-                    processed_volume += volume_in_band
-                    
-        elif logic == 'all_units':
-            # All units logic: single rebate rate applies to entire volume
-            applicable_rebate = 0.0
-            
-            for band in bands:
-                min_vol = band['min_volume']
-                max_vol = band['max_volume'] or float('inf')
-                
-                if min_vol <= volume_litres < max_vol:
-                    applicable_rebate = band['rebate']
-                    applicable_bands.append({
-                        'min_volume': min_vol,
-                        'max_volume': max_vol,
-                        'volume_in_band': volume_litres,
-                        'rebate_cents': applicable_rebate,
-                        'contribution': volume_litres * applicable_rebate
-                    })
-                    break
-            
-            total_rebate = volume_litres * applicable_rebate  # Rebates are in rands, not cents
-        
-        # Apply PV discount (all volume tier rebates are NET30)
-        pv_factors = self.calculate_present_value_factors()
-        total_rebate_pv = total_rebate / pv_factors['net30']
-        
-        return {
-            'total_rebate_nominal': total_rebate,
-            'total_rebate_pv': total_rebate_pv,
-            'rebate_per_litre_pv': total_rebate_pv / volume_litres if volume_litres > 0 else 0,
-            'logic': logic,
-            'applicable_bands': applicable_bands,
-            'tier_name': tier_config.get('description', 'Unknown')
-        }
     
     def get_applicable_volume_tiers(self, supplier_id: int, supplier_depot_id: int, option: str) -> List[str]:
         """
