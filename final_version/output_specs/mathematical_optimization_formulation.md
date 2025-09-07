@@ -62,15 +62,18 @@ For each volume tier reward contract `c`:
 ```
 Σ_{i∈I} Σ_{j∈S_c} Σ_{o∈O_vol^c} V_i × x_{i,j,o} ≥ T_c × y_c
 ```
-Where `O_vol^c` = volume-contributing options for contract `c` (base options + tier options belonging to this contract)
+Where:
+- `O_vol^c` = volume-contributing options for contract `c` (base options excluding RAC + tier options belonging to this contract)
+- Includes both base and tier allocations to prevent circular dependency
 
 **2b. Tier Options Require Contract Activation:**
 ```
 Σ_{i∈I} Σ_{j∈S_c} Σ_{o∈O_tier^c} x_{i,j,o} ≤ M × y_c
 ```
 Where:
-- `O_tier^c` = tier-enhanced options belonging to contract `c`
-- `M` = big-M constant (maximum number of tier options)
+- `O_tier^c` = tier-enhanced options belonging to contract `c` 
+- `M` = big-M constant (number of tier options that could be selected)
+- Implementation: `M = len(tier_option_vars)` for each contract
 
 ### 3. Rebate Adjustment Clause (RAC) Contract Constraints
 
@@ -80,23 +83,24 @@ For each RAC contract `c`:
 ```
 Σ_{i∈I} Σ_{j∈S_c} Σ_{o∈O_base^c} V_i × x_{i,j,o} ≥ T_c × y_c
 ```
-Where `O_base^c` = base options in relevant transport modes for contract `c`
+Where `O_base^c` = base options (excluding RAC and tier options) in relevant transport modes for contract `c`
 
-**3b. RAC Penalty Application (Volume Commitment Not Met):**
+**3b. RAC Penalty Enforcement (Volume Commitment Not Met):**
 ```
 Σ_{i∈I} Σ_{j∈S_c} Σ_{o∈O_RAC^c} x_{i,j,o} ≤ M × (1 - y_c)
 ```
 
-**3c. Base Options Forbidden When RAC Applies (Mutual Exclusion):**
+**3c. Base Options Require Contract Fulfillment (Mutual Exclusion):**
 ```
 Σ_{i∈I} Σ_{j∈S_c} Σ_{o∈O_base^c} x_{i,j,o} ≤ M × y_c
 ```
 Where:
-- `O_RAC^c` = RAC penalty options for contract `c`
-- `O_base^c` = base options for contract `c`
-- If volume commitment is met (`y_c = 1`): base options allowed, RAC options forbidden
-- If volume commitment is not met (`y_c = 0`): base options forbidden, RAC options allowed
-- **Ensures mutual exclusion**: prevents using cheaper base options when RAC penalties should apply
+- `O_RAC^c` = RAC penalty options for contract `c` (NET30 terms only)
+- `O_base^c` = base options for contract `c` in RAC transport modes
+- `M` = big-M constant (implementation: `len(rac_option_vars + base_option_vars)`)
+- **Mutual Exclusion Logic**:
+  - If `y_c = 1` (commitment met): base options allowed, RAC options forbidden
+  - If `y_c = 0` (commitment not met): base options forbidden, RAC options required
 
 ### 4. Supplier Depot Capacity Constraints
 
@@ -119,7 +123,7 @@ Total volume allocated to supplier depot `j` cannot exceed its individual capaci
 - **DEL (Supplier Delivery)**: `del_own`, `del_buy`, `del_rent`
 
 ### RAC Options  
-- **RAC Penalties**: `rac_coc_cash`, `rac_coc_30`, `rac_coc_45`, `rac_coc_60`, `rac_del_own`, `rac_del_buy`, `rac_del_rent`
+- **RAC Penalties**: `rac_coc_30`, `rac_del_own`, `rac_del_buy`, `rac_del_rent` (NET30 terms only)
 
 ### Volume Tier Enhanced Options
 - **Tier Options**: e.g., `coc_30_tier_15M_to_20M`, `del_own_tier_20M_to_25M`
@@ -140,8 +144,12 @@ Total volume allocated to supplier depot `j` cannot exceed its individual capaci
 - **Mutual Exclusion**: Base and RAC options cannot be used simultaneously for the same supplier contract
 
 ## Model Statistics
-- **Variables**: ~8,833 allocation variables + contract variables
-- **Constraints**: ~2,011 depot assignment + contract constraints + supplier depot capacity constraints
+- **Allocation Variables**: 10,908 binary variables for depot-supplier-option allocations
+- **Contract Variables**: 3 binary variables for contract activation (RAC and volume tier contracts)
+- **Total Cost Options**: 26,996 precomputed cost options across all scenarios
+- **Depot-Supplier Combinations**: 2,011 feasible combinations
+- **Option Types**: 32 total (7 base + 4 RAC + 21 volume tier enhanced options)
+- **Constraints**: ~60 depot assignment + volume tier/RAC contract constraints + 75 capacity constraints
 - **Problem Type**: Binary Integer Programming (BIP)
 - **Solver**: IBM CPLEX via DOcplex API
 

@@ -7,7 +7,7 @@ This document details all cost calculation formulas used in the fuel depot alloc
 
 ### Present Value Factors
 - **WACC**: Weighted Average Cost of Capital (from config: `wacc_percent`)
-- **Daily Rate**: `wacc_decimal = wacc_percent / 100`
+- **Annual Rate**: `wacc_decimal = wacc_percent / 100`
 - **PV Factors**:
   - `pv_cash = 1.0` (no discounting)
   - `pv_net30 = (1 + wacc_decimal/365) ^ 30`
@@ -89,37 +89,22 @@ del_rent_cost_pv = ((rtl_wholesale_per_litre - DEL_reb_pl_30) / pv_net30)
 RAC costs apply when volume commitments are not met. They use wholesale pricing without rebates plus transport/equipment costs.
 
 ### RAC COC Options
-
-#### RAC COC Cash
-```
-rac_coc_cash_cost_pv = rtl_wholesale_per_litre + transport_cost_per_litre 
-```
-- No rebates applied (penalty pricing)
+**Note**: RAC costs are calculated ONLY for NET30 terms as per specifications.
 
 #### RAC COC NET30
 ```
 rac_coc_30_cost_pv = (rtl_wholesale_per_litre / pv_net30) + transport_cost_per_litre
 ```
-
-#### RAC COC NET45
-```
-rac_coc_45_cost_pv = (rtl_wholesale_per_litre / pv_net45) + transport_cost_per_litre
-```
-
-#### RAC COC NET60
-```
-rac_coc_60_cost_pv = (rtl_wholesale_per_litre / pv_net60) + transport_cost_per_litre
-```
+- No rebates applied (penalty pricing)
+- Only RAC option available - other payment terms not supported for RAC
 
 ### RAC DEL Options
-RAC DEL uses transport charges from delivery options table.
+RAC DEL uses transport charges from delivery options table and are calculated ONLY for NET30 terms.
 
 #### RAC DEL Own Equipment
 ```
 rac_del_own_cost_pv = ((rtl_wholesale_per_litre + transport_charge_excl_zone) / pv_net30) + cost_owned_equip_pv
 ```
-Where:
-- `transport_charge_excl_zone`: "TRANSPORT CHARGE / (SAVING) EXCL ZONE DIFF" from delivery_options table
 
 #### RAC DEL Buy Equipment
 ```
@@ -130,6 +115,10 @@ rac_del_buy_cost_pv = ((rtl_wholesale_per_litre + transport_charge_excl_zone) / 
 ```
 rac_del_rent_cost_pv = ((rtl_wholesale_per_litre + transport_charge_excl_zone + equip_fin_pl_30 + equip_main_pl_30) / pv_net30)
 ```
+
+Where:
+- `transport_charge_excl_zone`: "TRANSPORT CHARGE / (SAVING) EXCL ZONE DIFF" from delivery_options table
+- All RAC DEL options use NET30 payment terms only
 
 ## Volume Tier Enhanced Costs
 Volume tier enhanced costs apply additional rebates when volume commitments are met. These are generated dynamically from `supplier_contract_configurations` where `contract_type` is `"volume_tier_rewards"`.
@@ -147,13 +136,7 @@ Volume tier enhanced costs apply additional rebates when volume commitments are 
 6. Generate dynamic column names using volume thresholds
 
 ### Volume Tier COC Options
-
-#### COC Cash with Volume Tier
-```
-coc_cash_tier_X = (rtl_wholesale_per_litre - COC_reb_pl_cash) + transport_cost_per_litre 
-```
-- Volume tier rebates don't apply to cash options in current implementation (same as base cost)
-- Generated for all combination rules but uses only base rebate
+**Note**: Volume tier enhanced costs are calculated ONLY for NET30 terms as per specifications.
 
 #### COC NET30 with Volume Tier
 
@@ -169,14 +152,8 @@ coc_30_tier_X = ((rtl_wholesale_per_litre - coc_tier_rebate) / pv_net30) + trans
 
 Where:
 - `coc_tier_rebate`: Volume tier rebate from reward band (R/litre)
+- All volume tier enhanced costs use NET30 payment terms only
 - Combination rule specified in contract configuration
-
-#### COC NET45/NET60 with Volume Tier
-```
-coc_45_tier_X = ((rtl_wholesale_per_litre - COC_reb_pl_45) / pv_net45) + transport_cost_per_litre 
-coc_60_tier_X = ((rtl_wholesale_per_litre - COC_reb_pl_60) / pv_net60) + transport_cost_per_litre 
-```
-- Volume tier rebates are NET30 terms, so don't apply to NET45/NET60 base options
 
 ### Volume Tier DEL Options
 

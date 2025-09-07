@@ -143,8 +143,7 @@ class OptimizationMapper:
                 available_costs[option] = cost_data[option]
         
         # RAC penalty options
-        rac_options = ['rac_coc_cash', 'rac_coc_30', 'rac_coc_45', 'rac_coc_60', 
-                      'rac_del_own', 'rac_del_buy', 'rac_del_rent']
+        rac_options = ['rac_coc_30', 'rac_del_own', 'rac_del_buy', 'rac_del_rent']
         rac_costs = {}
         for option in rac_options:
             if option in cost_data and cost_data[option] is not None:
@@ -165,8 +164,8 @@ class OptimizationMapper:
         return available_costs
     
     def _create_enhanced_map(self, save_path: str) -> str:
-        """Create the enhanced map visualization with all routes in grey and optimized routes highlighted."""
-        logger.info("Creating enhanced visualization with grey routes and optimized overlays...")
+        """Create the enhanced map visualization with supplier-specific layers containing both depots and routes."""
+        logger.info("Creating enhanced visualization with supplier-specific layers...")
         
         # Initialize map centered on South Africa with white theme
         center_lat, center_lon = -28.0, 25.0
@@ -179,34 +178,26 @@ class OptimizationMapper:
         # Create feature groups for layer control
         self.feature_groups = {}
         
-        # Create base layers that are always visible
-        base_layer = folium.FeatureGroup(name='Base (Grey Routes & Customer Depots)')
-        
-        # Add grey routes and customer depots to base layer
-        self._add_grey_routes_to_map(base_layer)
+        # Create base layer with only customer depots (always visible)
+        base_layer = folium.FeatureGroup(name='📍 Customer Depots')
         self._add_customer_depot_markers(base_layer)
         base_layer.add_to(map_viz)
         
-        # Create separate feature groups for each supplier
+        # Create supplier-specific layers with both depots and routes
         self._create_supplier_layers(map_viz)
-        
-        # Create optimized routes layer
-        optimized_routes_layer = folium.FeatureGroup(name='🎯 Optimal Routes', show=True)
-        self._add_optimized_routes_to_map(optimized_routes_layer)
-        optimized_routes_layer.add_to(map_viz)
         
         # Add layer control panel
         folium.LayerControl(position='topright', collapsed=False).add_to(map_viz)
         
         # Save the enhanced map
         map_viz.save(save_path)
-        logger.info(f"Enhanced map with layer control saved to: {save_path}")
+        logger.info(f"Enhanced map with supplier-specific layers saved to: {save_path}")
         
         return save_path
     
     def _create_supplier_layers(self, map_viz):
-        """Create separate feature groups for each supplier's depots."""
-        logger.info("Creating supplier-specific layers...")
+        """Create separate feature groups for each supplier's depots and routes."""
+        logger.info("Creating supplier-specific layers with depots and routes...")
         
         # Group supplier depots by supplier name
         suppliers_data = {}
@@ -233,6 +224,9 @@ class OptimizationMapper:
             
             # Add supplier depots to this layer
             self._add_supplier_depots_to_layer(supplier_layer, suppliers_data[supplier_name])
+            
+            # Add all routes for this supplier (both potential and optimized)
+            self._add_supplier_routes_to_layer(supplier_layer, supplier_name)
             
             # Add layer to map
             supplier_layer.add_to(map_viz)
@@ -298,11 +292,11 @@ class OptimizationMapper:
                 )
             ).add_to(layer)
     
-    def _add_grey_routes_to_map(self, map_viz):
-        """Add all possible routes to map in grey color."""
-        logger.info("Adding all possible routes in grey...")
+    def _add_supplier_routes_to_layer(self, layer, supplier_name):
+        """Add all routes (potential and optimized) for a specific supplier to their layer."""
+        logger.info(f"Adding routes for {supplier_name} to supplier layer...")
         
-        grey_routes_added = 0
+        routes_added = 0
         for customer_id, supplier_routes in self.all_routes.items():
             # Get customer depot coordinates (convert to int for dictionary lookup)
             customer_info = self.customer_depot_info.get(int(customer_id), {})
@@ -313,11 +307,11 @@ class OptimizationMapper:
                 continue
                 
             for supplier_depot_id, route_info in supplier_routes.items():
-                # Skip routes that are optimized (they'll be overlaid in color)
-                if route_info['is_optimized']:
+                # Only process routes for this specific supplier
+                if route_info['supplier_name'] != supplier_name:
                     continue
                     
-                # Get supplier depot coordinates from the route cost data (convert to int for dictionary lookup)
+                # Get supplier depot coordinates from the route cost data
                 supplier_depot_data = self.all_route_costs.get(int(customer_id), {}).get(int(supplier_depot_id), {})
                 supplier_lat = supplier_depot_data.get('supplier_depot_lat')
                 supplier_lon = supplier_depot_data.get('supplier_depot_lon')
@@ -325,31 +319,61 @@ class OptimizationMapper:
                 if not supplier_lat or not supplier_lon:
                     continue
                 
-                # Create grey route line
+                # Create route line coordinates
                 line_coords = [[customer_lat, customer_lon], [supplier_lat, supplier_lon]]
                 
-                # Enhanced popup with all available cost options
-                popup_content = self._create_detailed_route_popup(
-                    customer_id, 
-                    supplier_depot_id, 
-                    route_info, 
-                    is_optimized=False
-                )
+                # Determine route color and style based on optimization status
+                if route_info['is_optimized']:
+                    # Optimized route: use supplier color, thicker line
+                    supplier_color_info = self.supplier_colors.get(supplier_name, {'hex': '#000000'})
+                    line_color = supplier_color_info['hex']
+                    line_weight = 3
+                    line_opacity = 0.8
+                    
+                    # Enhanced popup for optimized routes
+                    annual_volume = customer_info.get('annual_volume', 0)
+                    total_cost = annual_volume * route_info['optimized_cost'] if route_info['optimized_cost'] else 0
+                    supplier_depot_name = supplier_depot_data.get('supplier_depot_name', f'Depot {supplier_depot_id}')
+                    
+                    popup_content = f"""
+                    <div style="font-family: Arial, sans-serif;">
+                        <h4 style="margin: 0 0 10px 0; color: #d63031;">OPTIMIZED ROUTE</h4>
+                        <strong>Route:</strong> Customer Depot {customer_id} → {supplier_name} Depot {supplier_depot_id} ({supplier_depot_name})<br>
+                        <strong>Option:</strong> {route_info['optimized_option']}<br>
+                        <strong>Distance:</strong> {route_info['distance_km']:.1f} km<br>
+                        <strong>Volume:</strong> {annual_volume:,.0f} L<br>
+                        <strong>Cost/L:</strong> R {route_info['optimized_cost']:.4f}<br>
+                        <strong>Total Cost:</strong> R {total_cost:,.2f}
+                    </div>
+                    """
+                else:
+                    # Potential route: use grey color, thinner line
+                    line_color = '#808080'
+                    line_weight = 1
+                    line_opacity = 0.3
+                    
+                    # Detailed popup with all available cost options
+                    popup_content = self._create_detailed_route_popup(
+                        customer_id, 
+                        supplier_depot_id, 
+                        route_info, 
+                        is_optimized=False
+                    )
                 
                 try:
                     folium.PolyLine(
                         locations=line_coords,
-                        color='#808080',  # Grey color
-                        weight=1,         # Thicker line (was 1)
-                        opacity=0.3,      # More visible (was 0.3)
+                        color=line_color,
+                        weight=line_weight,
+                        opacity=line_opacity,
                         popup=folium.Popup(popup_content, max_width=450)
-                    ).add_to(map_viz)
+                    ).add_to(layer)
                     
-                    grey_routes_added += 1
+                    routes_added += 1
                 except Exception as e:
-                    logger.error(f"Failed to add grey route {customer_id}->{supplier_depot_id}: {e}")
+                    logger.error(f"Failed to add route {customer_id}->{supplier_depot_id} for {supplier_name}: {e}")
         
-        logger.info(f"Added {grey_routes_added} grey routes to map")
+        logger.info(f"Added {routes_added} routes for {supplier_name}")
     
     def _create_detailed_route_popup(self, customer_id, supplier_depot_id, route_info, is_optimized=False):
         """Create detailed popup content showing all available cost options."""
@@ -408,10 +432,7 @@ class OptimizationMapper:
         
         # Add RAC penalty options if available
         rac_options = {
-            'rac_coc_cash': 'RAC COC Cash',
             'rac_coc_30': 'RAC COC NET30',
-            'rac_coc_45': 'RAC COC NET45', 
-            'rac_coc_60': 'RAC COC NET60',
             'rac_del_own': 'RAC DEL Own',
             'rac_del_buy': 'RAC DEL Buy',
             'rac_del_rent': 'RAC DEL Rent'
@@ -487,65 +508,3 @@ class OptimizationMapper:
                 tooltip=f"Customer Depot {customer_id}",
                 icon=folium.Icon(color='black', icon='home')
             ).add_to(map_viz)
-    
-    
-    def _add_optimized_routes_to_map(self, map_viz):
-        """Add optimized routes in supplier-specific colors."""
-        logger.info("Adding optimized routes in supplier colors...")
-        
-        # Use the same color mapping as supplier depot pins
-        
-        optimized_routes_added = 0
-        for route_key, route_info in self.optimized_routes.items():
-            customer_id, supplier_depot_id = route_key
-            
-            # Get coordinates (convert to int for dictionary lookup)
-            customer_info = self.customer_depot_info.get(int(customer_id), {})
-            customer_lat = customer_info.get('latitude')
-            customer_lon = customer_info.get('longitude')
-            
-            supplier_depot_data = self.all_route_costs.get(int(customer_id), {}).get(int(supplier_depot_id), {})
-            supplier_lat = supplier_depot_data.get('supplier_depot_lat')
-            supplier_lon = supplier_depot_data.get('supplier_depot_lon')
-            
-            if not all([customer_lat, customer_lon, supplier_lat, supplier_lon]):
-                continue
-            
-            # Get supplier color using the same mapping as depot pins
-            supplier_name = route_info['supplier_name']
-            supplier_color_info = self.supplier_colors.get(supplier_name, {'hex': '#000000', 'folium': 'black'})
-            supplier_color = supplier_color_info['hex']  # Use hex color for lines
-            
-            line_coords = [[customer_lat, customer_lon], [supplier_lat, supplier_lon]]
-            
-            # Enhanced popup for optimized routes
-            annual_volume = customer_info.get('annual_volume', 0)
-            total_cost = annual_volume * route_info['optimized_cost'] if route_info['optimized_cost'] else 0
-            
-            # Get supplier depot name from cost data
-            supplier_depot_name = supplier_depot_data.get('supplier_depot_name', f'Depot {supplier_depot_id}')
-            
-            popup_content = f"""
-            <b>OPTIMIZED ROUTE</b><br>
-            <b>Customer Depot {customer_id} → {supplier_name} Depot {supplier_depot_id} ({supplier_depot_name})</b><br>
-            Option: {route_info['optimized_option']}<br>
-            Distance: {route_info['distance_km']:.1f} km<br>
-            Volume: {annual_volume:,.0f} L<br>
-            Cost/L: R {route_info['optimized_cost']:.4f}<br>
-            Total Cost: R {total_cost:,.2f}
-            """
-            
-            try:
-                folium.PolyLine(
-                    locations=line_coords,
-                    color=supplier_color,
-                    weight=3,         # Even thicker line for optimized routes 
-                    opacity=0.8,      # Very opaque 
-                    popup=folium.Popup(popup_content, max_width=300)
-                ).add_to(map_viz)
-                
-                optimized_routes_added += 1
-            except Exception as e:
-                logger.error(f"Failed to add optimized route {customer_id}->{supplier_depot_id}: {e}")
-        
-        logger.info(f"Added {optimized_routes_added} optimized routes to map")

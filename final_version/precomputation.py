@@ -474,9 +474,8 @@ class FuelOptimizationPrecomputation:
         
         if not rac_enabled_supplier_ids:
             logger.info("No RAC-enabled suppliers found - skipping RAC calculations")
-            # Initialize RAC columns with NaN
-            rac_columns = ['rac_coc_cash_cost_pv', 'rac_coc_30_cost_pv', 'rac_coc_45_cost_pv', 'rac_coc_60_cost_pv',
-                          'rac_del_own_cost_pv', 'rac_del_buy_cost_pv', 'rac_del_rent_cost_pv']
+            # Initialize RAC columns with NaN (NET30 only)
+            rac_columns = ['rac_coc_30_cost_pv', 'rac_del_own_cost_pv', 'rac_del_buy_cost_pv', 'rac_del_rent_cost_pv']
             for col in rac_columns:
                 df[col] = np.nan
             return df
@@ -486,36 +485,15 @@ class FuelOptimizationPrecomputation:
         cost_buy_equip_pv = self.config['basic_parameters']['cost_buy_equip_pv']
         
         # === RAC COC Calculations (no rebates, just wholesale + transport) ===
-        # Only calculate for RAC-enabled suppliers
+        # Only calculate for RAC-enabled suppliers and only NET30 terms
         coc_mask = df['COC_Valid_FK'].notna()
         rac_supplier_mask = df['Supplier_FK'].isin(rac_enabled_supplier_ids)
         rac_coc_mask = coc_mask & rac_supplier_mask
         
-        # RAC COC Cash (immediate payment)
-        df['rac_coc_cash_cost_pv'] = np.where(
-            rac_coc_mask,
-            df['rtl_wholesale_per_litre'] + df['trans_cost_pl'],
-            np.nan
-        )
-        
-        # RAC COC NET30
+        # RAC COC NET30 (ONLY NET30 for RAC penalties)
         df['rac_coc_30_cost_pv'] = np.where(
             rac_coc_mask,
             (df['rtl_wholesale_per_litre'] / pv_factors['net30']) + df['trans_cost_pl'],
-            np.nan
-        )
-        
-        # RAC COC NET45
-        df['rac_coc_45_cost_pv'] = np.where(
-            rac_coc_mask,
-            (df['rtl_wholesale_per_litre'] / pv_factors['net45']) + df['trans_cost_pl'],
-            np.nan
-        )
-        
-        # RAC COC NET60
-        df['rac_coc_60_cost_pv'] = np.where(
-            rac_coc_mask,
-            (df['rtl_wholesale_per_litre'] / pv_factors['net60']) + df['trans_cost_pl'],
             np.nan
         )
         
@@ -564,8 +542,7 @@ class FuelOptimizationPrecomputation:
         )
         
         # Log RAC calculation results
-        rac_columns = ['rac_coc_cash_cost_pv', 'rac_coc_30_cost_pv', 'rac_coc_45_cost_pv', 'rac_coc_60_cost_pv',
-                       'rac_del_own_cost_pv', 'rac_del_buy_cost_pv', 'rac_del_rent_cost_pv']
+        rac_columns = ['rac_coc_30_cost_pv', 'rac_del_own_cost_pv', 'rac_del_buy_cost_pv', 'rac_del_rent_cost_pv']
         
         for col in rac_columns:
             available_count = df[col].notna().sum()
@@ -641,15 +618,7 @@ class FuelOptimizationPrecomputation:
                         if coc_mask:
                             # COC with rebate_combination: "additive_to_base" - add tier rebate to base rebate
                             if rebate_combination == 'additive_to_base':
-                                # COC Cash (immediate payment) - only base rebate, no tier rebate for cash
-                                tier_col = f'coc_cash_tier{band_suffix}'
-                                if tier_col not in df.columns:
-                                    df[tier_col] = np.nan
-                                df.loc[df.index[_], tier_col] = (
-                                    row['rtl_wholesale_per_litre'] - row['COC_reb_pl_cash']
-                                ) + row['trans_cost_pl']
-                                
-                                # COC NET30 - base rebate + tier rebate
+                                # COC NET30 - base rebate + tier rebate (ONLY NET30 for volume tiers)
                                 tier_col = f'coc_30_tier{band_suffix}'
                                 if tier_col not in df.columns:
                                     df[tier_col] = np.nan
@@ -657,34 +626,10 @@ class FuelOptimizationPrecomputation:
                                     (row['rtl_wholesale_per_litre'] - (row['COC_reb_pl_30'] + coc_rebate)) / pv_factors['net30']
                                 ) + row['trans_cost_pl']
                                 
-                                # COC NET45 - only base rebate (tier rebate is NET30 terms)
-                                tier_col = f'coc_45_tier{band_suffix}'  
-                                if tier_col not in df.columns:
-                                    df[tier_col] = np.nan
-                                df.loc[df.index[_], tier_col] = (
-                                    (row['rtl_wholesale_per_litre'] - row['COC_reb_pl_45']) / pv_factors['net45']
-                                ) + row['trans_cost_pl']
-                                
-                                # COC NET60 - only base rebate (tier rebate is NET30 terms)
-                                tier_col = f'coc_60_tier{band_suffix}'
-                                if tier_col not in df.columns:
-                                    df[tier_col] = np.nan
-                                df.loc[df.index[_], tier_col] = (
-                                    (row['rtl_wholesale_per_litre'] - row['COC_reb_pl_60']) / pv_factors['net60']
-                                ) + row['trans_cost_pl']
-                                
-                                tier_cost_count += 4
+                                tier_cost_count += 1
                             
                             elif rebate_combination == 'override_base':
-                                # COC Cash - only base rebate (volume tier rebates don't apply to cash)
-                                tier_col = f'coc_cash_tier{band_suffix}'
-                                if tier_col not in df.columns:
-                                    df[tier_col] = np.nan
-                                df.loc[df.index[_], tier_col] = (
-                                    row['rtl_wholesale_per_litre'] - row['COC_reb_pl_cash']
-                                ) + row['trans_cost_pl']
-                                
-                                # COC NET30 - tier rebate overrides base rebate
+                                # COC NET30 - tier rebate overrides base rebate (ONLY NET30 for volume tiers)
                                 tier_col = f'coc_30_tier{band_suffix}'
                                 if tier_col not in df.columns:
                                     df[tier_col] = np.nan
@@ -692,23 +637,7 @@ class FuelOptimizationPrecomputation:
                                     (row['rtl_wholesale_per_litre'] - coc_rebate) / pv_factors['net30']
                                 ) + row['trans_cost_pl']
                                 
-                                # COC NET45 - only base rebate (tier rebate is NET30 terms)
-                                tier_col = f'coc_45_tier{band_suffix}'  
-                                if tier_col not in df.columns:
-                                    df[tier_col] = np.nan
-                                df.loc[df.index[_], tier_col] = (
-                                    (row['rtl_wholesale_per_litre'] - row['COC_reb_pl_45']) / pv_factors['net45']
-                                ) + row['trans_cost_pl']
-                                
-                                # COC NET60 - only base rebate (tier rebate is NET30 terms)
-                                tier_col = f'coc_60_tier{band_suffix}'
-                                if tier_col not in df.columns:
-                                    df[tier_col] = np.nan
-                                df.loc[df.index[_], tier_col] = (
-                                    (row['rtl_wholesale_per_litre'] - row['COC_reb_pl_60']) / pv_factors['net60']
-                                ) + row['trans_cost_pl']
-                                
-                                tier_cost_count += 4
+                                tier_cost_count += 1
                     
                     # DEL Volume Tier Enhanced Costs
                     if 'DEL' in transport_modes and del_rebate > 0:
@@ -808,12 +737,9 @@ class FuelOptimizationPrecomputation:
             'del_rent': 'del_rent_cost_pv'
         }
         
-        # RAC (Rebate Adjustment Clause) penalty cost columns
+        # RAC (Rebate Adjustment Clause) penalty cost columns (NET30 only)
         rac_cost_columns = {
-            'rac_coc_cash': 'rac_coc_cash_cost_pv',
-            'rac_coc_30': 'rac_coc_30_cost_pv', 
-            'rac_coc_45': 'rac_coc_45_cost_pv',
-            'rac_coc_60': 'rac_coc_60_cost_pv',
+            'rac_coc_30': 'rac_coc_30_cost_pv',
             'rac_del_own': 'rac_del_own_cost_pv',
             'rac_del_buy': 'rac_del_buy_cost_pv', 
             'rac_del_rent': 'rac_del_rent_cost_pv'

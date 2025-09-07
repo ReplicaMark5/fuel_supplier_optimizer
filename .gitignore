@@ -32,3 +32,4 @@ optimization_map*.html
 
 # Logs
 *.log
+.aider*
