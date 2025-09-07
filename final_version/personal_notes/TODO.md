@@ -1,42 +1,41 @@
 
 
-Equipment 
-- Make sure config defines which suppliers actually have equipment finance and maintenance charges as an option. 
-- Make sure config defines which customer depots already have equipment vs ones that want to buy equipment 
-- make sure that for equipment cost is done per depot for owned or new equipment (either calc or input for each one)
+**Equipment**
+- [ ] Make sure config defines which suppliers actually have equipment finance and maintenance charges as an option. 
+- [ ] Make sure config defines which customer depots already have equipment vs ones that want to buy equipment 
+- [ ] make sure that for equipment cost is done per depot for owned or new equipment (either calc or input for each one [cost_pl_on_buy_equip_pv and cost_pl_on_owned_equip_pv]
+- [ ] Add equipment availability in the config for each customer depot... (for DEL options and might have to adjust to include COC options as well?)
 
 
-- Must factor in customer depot tank capcity (UNITRANS PREFERS HAVING FUEL DELIVERED FOR CUSTOMER DEPOTS WITH SMALLER TANK CAPACITY)
+**Customer Depot Tank Capacity**
+- [ ] Must factor in customer depot tank capcity (UNITRANS PREFERS HAVING FUEL DELIVERED FOR CUSTOMER DEPOTS WITH SMALLER TANK CAPACITY)
   ---> use tank capacity per customer depot 
   ---> add reorder level for these customer tanks
   ---> BASICALLY IF CUSTOMER DEPOT TANK CAPACITY IS LOWER THAN TANKER CAPACITY THEN THIS FORMULA [trans_cost_pl = ((One_Way_Dist)(2)(tanker_cost_per_km))/tanker_cap] MUST USE THE (tank capacity - reorder level)
 
-- Add equipment availability in the config for each customer depot... (for DEL options and might have to adjust to include COC options as well)
+
+**Extras**
+- [ ] Look at implementing (static VS dynamic) and/or (deterministic Vs stochastic) [eg. variable demand volume, variable fuel price etc...][look at stochastic programming and robust optimization]
+- [ ] Implement all unit vs incremental volume tiers 
+- [ ] Check costs are calculated correctly for international depots
+
+**Constraints**
+- [ ] Max number of customer supplier contracts 
+- [ ] Implement, constraints that limit one supplier contract to one payment term(or some sort of constraint that is to do with payment term)
+- [ ] Cross-boarder trade constraint or penalty
 
 
--Look at implementing (static VS dynamic) and/or (deterministic Vs stochastic) [eg. variable demand volume, variable fuel price etc...][look at stochastic programming and robust optimization]
 
-- Implement all unit vs incremental volume tiers 
+
+
+
+
 
 
 Could look at adding: 
 
 - Nested `scope_filters`, `operational_rules`, `penalties`                         
 - override_value`, `fallback_rebate` 
-
-
-
-**Check costs are calculated correctly for international depots
-
-
-CONSTRAINTS
-
-- Max number of customer supplier contracts 
-- Implement, constraints that limit one supplier contract to one payment term(or some sort of constraint that is to do with payment term)
-
-- Cross-boarder trade constraint or penalty
-
-
 
 CHAT GPT RECOMMENDATION 
 

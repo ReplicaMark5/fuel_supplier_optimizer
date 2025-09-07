@@ -12,8 +12,11 @@ The fuel depot allocation optimizer is a binary integer programming problem that
   - `o` ∈ O: Set of cost options (base, RAC, and volume tier enhanced options)
 
 ### Contract Activation Variables
-- **`y_c`** ∈ {0,1}: Binary variable indicating if contract `c` is activated
-  - `c` ∈ C: Set of contracts (volume tier rewards and RAC contracts)
+- **`y_c`** ∈ {0,1}: Binary variable indicating if RAC contract `c` is activated
+  - `c` ∈ C_RAC: Set of RAC contracts
+- **`z_{c,b}`** ∈ {0,1}: Binary variable indicating if tier band `b` in volume tier contract `c` is activated
+  - `c` ∈ C_VTR: Set of volume tier reward contracts
+  - `b` ∈ B_c: Set of tier bands for contract `c`
 
 ## Parameters
 
@@ -22,7 +25,9 @@ The fuel depot allocation optimizer is a binary integer programming problem that
 - **`C_{i,j,o}`**: Cost per litre for allocating depot `i` to supplier depot `j` with option `o` (Rands/litre)
 
 ### Contract Parameters
-- **`T_c`**: Volume threshold for contract `c` (litres)
+- **`T_c`**: Volume threshold for RAC contract `c` (litres)
+- **`T_{c,b}`**: Minimum volume threshold for tier band `b` in volume tier contract `c` (litres)
+- **`T^{max}_{c,b}`**: Maximum volume threshold for tier band `b` in volume tier contract `c` (litres, optional)
 - **`L_j`**: Capacity limit for supplier depot `j` (litres)
 
 ### Sets and Mappings
@@ -54,26 +59,27 @@ Each customer depot must be allocated to exactly one supplier depot with one cos
 Σ_{j∈J} Σ_{o∈O} x_{i,j,o} = 1    ∀i ∈ I
 ```
 
-### 2. Volume Tier Reward Contract Constraints
+### 2. Volume Tier Reward Contract Constraints (Multi-Band Tier Gating)
 
-For each volume tier reward contract `c`:
+For each volume tier reward contract `c` and each tier band `b`:
 
-**2a. Contract Activation Based on Volume Threshold:**
+**2a. Tier Band Activation Based on Volume Threshold:**
 ```
-Σ_{i∈I} Σ_{j∈S_c} Σ_{o∈O_vol^c} V_i × x_{i,j,o} ≥ T_c × y_c
+Σ_{i∈I} Σ_{j∈S_c} Σ_{o∈O_vol^c} V_i × x_{i,j,o} ≥ T_{c,b} × z_{c,b}
 ```
 Where:
 - `O_vol^c` = volume-contributing options for contract `c` (base options excluding RAC + tier options belonging to this contract)
+- `T_{c,b}` = minimum volume threshold for tier band `b`
 - Includes both base and tier allocations to prevent circular dependency
 
-**2b. Tier Options Require Contract Activation:**
+**2b. Tier Band Options Require Band Activation:**
 ```
-Σ_{i∈I} Σ_{j∈S_c} Σ_{o∈O_tier^c} x_{i,j,o} ≤ M × y_c
+Σ_{i∈I} Σ_{j∈S_c} Σ_{o∈O_tier^{c,b}} x_{i,j,o} ≤ M_b × z_{c,b}
 ```
 Where:
-- `O_tier^c` = tier-enhanced options belonging to contract `c` 
-- `M` = big-M constant (number of tier options that could be selected)
-- Implementation: `M = len(tier_option_vars)` for each contract
+- `O_tier^{c,b}` = tier-enhanced options belonging specifically to tier band `b` of contract `c`
+- `M_b` = big-M constant (number of tier options in band `b`)
+- **Key Difference**: Each tier band can only be used if its specific volume threshold is met
 
 ### 3. Rebate Adjustment Clause (RAC) Contract Constraints
 
@@ -131,11 +137,13 @@ Total volume allocated to supplier depot `j` cannot exceed its individual capaci
 
 ## Contract Logic Summary
 
-### Volume Tier Rewards
-- **Purpose**: Provide discounts when volume commitments are met
-- **Logic**: If total volume (base + tier) ≥ threshold → tier options become available
-- **Cost Effect**: Tier options typically have lower costs than base options
-- **Volume Calculation**: Includes both base options and tier options to avoid circular dependency
+### Volume Tier Rewards (Multi-Band Gating)
+- **Purpose**: Provide progressive discounts based on volume bands
+- **Logic**: Each tier band has independent activation based on its specific volume threshold
+  - Example: 15M volume activates only 15M-20M tier, not 25M+ tier
+- **Cost Effect**: Higher tier bands typically have better rebates/lower costs than lower bands
+- **Volume Calculation**: Shared volume calculation across all bands to prevent gaming
+- **Multi-Band Logic**: Prevents premature access to higher-tier benefits
 
 ### Rebate Adjustment Clause (RAC)  
 - **Purpose**: Penalize failure to meet volume commitments
@@ -143,13 +151,15 @@ Total volume allocated to supplier depot `j` cannot exceed its individual capaci
 - **Cost Effect**: RAC options typically have higher costs than base options
 - **Mutual Exclusion**: Base and RAC options cannot be used simultaneously for the same supplier contract
 
-## Model Statistics
+## Model Statistics (Updated for Multi-Band Gating)
 - **Allocation Variables**: 10,908 binary variables for depot-supplier-option allocations
-- **Contract Variables**: 3 binary variables for contract activation (RAC and volume tier contracts)
+- **RAC Contract Variables**: 1 binary variable for RAC contract activation
+- **Tier Band Variables**: 6 binary variables for individual tier band activation (3 bands × 2 contracts)
+- **Total Binary Variables**: 10,915 variables
 - **Total Cost Options**: 26,996 precomputed cost options across all scenarios
 - **Depot-Supplier Combinations**: 2,011 feasible combinations
 - **Option Types**: 32 total (7 base + 4 RAC + 21 volume tier enhanced options)
-- **Constraints**: ~60 depot assignment + volume tier/RAC contract constraints + 75 capacity constraints
+- **Constraints**: ~60 depot assignment + 18 tier band constraints + 6 RAC constraints + 75 capacity constraints = 159 total
 - **Problem Type**: Binary Integer Programming (BIP)
 - **Solver**: IBM CPLEX via DOcplex API
 
@@ -161,9 +171,15 @@ Total volume allocated to supplier depot `j` cannot exceed its individual capaci
 
 3. **Big-M Constraints**: Used to model conditional logic where tier options are only available when volume commitments are met
 
-4. **Volume Calculation Fix**: Volume tier contracts now count both base and tier allocations to prevent circular dependency where using tier options would disable tier eligibility
+4. **Volume Calculation Fix**: Volume tier contracts count both base and tier allocations to prevent circular dependency where using tier options would disable tier eligibility
 
-5. **RAC Mutual Exclusion**: Added constraint 3c to prevent simultaneous use of base and RAC options, ensuring proper penalty application when volume commitments are not met
+5. **Multi-Band Tier Gating**: **CRITICAL FIX** - Replaced single contract variables with per-band variables to prevent premature access to higher tiers:
+   - Each tier band (15M-20M, 20M-25M, 25M+) has its own binary activation variable
+   - 15M volume can only activate 15M-20M tier options, not 25M+ tier options
+   - Prevents optimizer from accessing unrealistic cost savings
+   - Maintains business logic compliance with progressive volume tier requirements
+
+6. **RAC Mutual Exclusion**: Added constraint 3c to prevent simultaneous use of base and RAC options, ensuring proper penalty application when volume commitments are not met
 
 6. **Granular Capacity Constraints**: Capacity limits applied at supplier depot level rather than supplier level to reflect real terminal throughput constraints
 

@@ -9,15 +9,11 @@ All volume tier rebates are 30 day terms rebates. other payment terms are not av
 Supplier 1 has 20 000 000 volume tier on all supply depots with Rebate_adjustment_clause = True (this means that the base costs are used if volume tier is met and if it is not then the TOP costs must be used), this supplier has combination rule = null (as this is a Rebate_adjustment_clause volume tier so overide and add is no use). This suppliers volume tier is applicable across all transport modes (COC and DEL),  ["coc_rebate": null,"del_rebate": null] (this is the case as it is a Rebate_adjustment_clause agreement)
 
 
-****Rebate_adjustment_clause****   <---- these calculations must be added to the computations and included in the dictionary so that the Rebate_adjustment_clause contract option can be modelled
-RAC_COC_cash_total_cost_pl_pv  = (rtl_wholesale_Sup_Dep/100) + trans_cost_pl
+****Rebate_adjustment_clause****   <---- these calculations are in the precomputations and included in the dictionary so that the Rebate_adjustment_clause contract option can be modelled
+
 RAC_COC_30_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100))/(1+WACC%/365)^30 + trans_cost_pl
-RAC_COC_45_total_cost_pl_pv= ((rtl_wholesale_Sup_Dep/100))/(1+WACC%/365)^45 + trans_cost_pl
-RAC_COC_60_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100))/(1+WACC%/365)^60 + trans_cost_pl
 
 RAC_DEL_own_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) + (TRANSPORT CHARGE / (SAVING) EXCL ZONE DIFF))/(1+WACC%/365)^30  + cost_pl_on_owned_equip_pv 
-RAC_DEL_buy_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) + (TRANSPORT CHARGE / (SAVING) EXCL ZONE DIFF))/(1+WACC%/365)^30  + cost_pl_on_buy_equip_pv 
-RAC_DEL_rent_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) + (TRANSPORT CHARGE / (SAVING) EXCL ZONE DIFF + equip_fin_pl_30 + equip_main_pl_30))/(1+WACC%/365)^30 
 
 
 **Supplier C**
