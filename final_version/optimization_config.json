@@ -46,6 +46,7 @@
       "supplier_depots": ["*"],
       "transport_modes": ["COC", "DEL"],
       "volume_calculation_modes": ["COC", "DEL"],
+      "tiering_regime": "all_units",
       "rebate_combination": "additive_to_base",
       "reward_bands": [
         {
@@ -80,6 +81,7 @@
       "supplier_depots": ["*"],
       "transport_modes": ["DEL"],
       "volume_calculation_modes": ["DEL"],
+      "tiering_regime": "incremental",
       "rebate_combination": "override_base",
       "reward_bands": [
         {

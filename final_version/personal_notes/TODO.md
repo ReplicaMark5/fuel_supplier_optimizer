@@ -2,9 +2,9 @@
 
 **Equipment**
 - [ ] Make sure config defines which suppliers actually have equipment finance and maintenance charges as an option. 
-- [ ] Make sure config defines which customer depots already have equipment vs ones that want to buy equipment 
+- [ ] Make sure config defines which customer depots already have equipment vs ones that want to buy equipment (for del and coc)
 - [ ] make sure that for equipment cost is done per depot for owned or new equipment (either calc or input for each one [cost_pl_on_buy_equip_pv and cost_pl_on_owned_equip_pv]
-- [ ] Add equipment availability in the config for each customer depot... (for DEL options and might have to adjust to include COC options as well?)
+- [ ] Adjust cost per litre for COC precomputation to include equipment costs as if the collection option is choosen, unitrans still need to pay for equipment themselves this doesnt only apply to the DEL)
 
 
 **Customer Depot Tank Capacity**
@@ -15,9 +15,9 @@
 
 
 **Extras**
-- [ ] Look at implementing (static VS dynamic) and/or (deterministic Vs stochastic) [eg. variable demand volume, variable fuel price etc...][look at stochastic programming and robust optimization]
 - [ ] Implement all unit vs incremental volume tiers 
 - [ ] Check costs are calculated correctly for international depots
+- [ ] Look at implementing (static VS dynamic) and/or (deterministic Vs stochastic) [eg. variable demand volume, variable fuel price etc...][look at stochastic programming and robust optimization]
 
 **Constraints**
 - [ ] Max number of customer supplier contracts 
