@@ -69,7 +69,7 @@ RAC_COC_30_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100))/(1+WACC%/365)^30 + t
 
 
 *DEL validate*
-
+cost_pl_on_buy_equip_pv = #### \\(rands per litre)  cost of buying equipment measured in rands per litre of fuel that goes throught the equipment (eg. pumps and tanks) 
 cost_pl_on_owned_equip_pv = ####  \\(rands per litre) cost of customer owning equipment themselves measured in rands per litre of fuel that goes throught the equipment (eg. pumps and tanks) (this is a company wide calculated average that is used for all fuel depot equipment, whether the company already owns the equipment or will buy more equipment themselves)
 
 DEL_reb_pl_30 = (from database) \\(rands per litre)****
@@ -79,7 +79,9 @@ equip_main_pl_30 = (from database) \\(rands per litre)
 
 
 **Base**
-DEL_own_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) - (DEL_reb_pl_30 + equip_fin_pl_30 + equip_main_pl_30))/(1+WACC%/365)^30 + cost_pl_on_owned_equip_pv   \\Dellivery cost per litre if customer continues to use/buy their own equipment
+DEL_own_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) - (DEL_reb_pl_30 + equip_fin_pl_30 + equip_main_pl_30))/(1+WACC%/365)^30 + cost_pl_on_owned_equip_pv   \\Dellivery cost per litre if customer aready owns equipment
+
+DEL_buy_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) - (DEL_reb_pl_30 + equip_fin_pl_30 + equip_main_pl_30))/(1+WACC%/365)^30 + cost_pl_on_buy_equip_pv \\Dellivery cost per litre if customer needs/wants to buy equipment
 
 DEL_rent_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) - DEL_reb_pl_30)/(1+WACC%/365)^30  \\Dellivery cost per litre for if customer wants to rent equipment
 
@@ -91,16 +93,21 @@ Add DEL volume tier (y/n) = ####
 ***If Overide***
 DEL_own_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) - (vol_tier_reb_30D + equip_fin_pl_30 + equip_main_pl_30))/(1+WACC%/365)^30 + cost_pl_on_owned_equip_pv
 
+DEL_buy_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) - (vol_tier_reb_30D + equip_fin_pl_30 + equip_main_pl_30))/(1+WACC%/365)^30 + cost_pl_on_buy_equip_pv
+
 DEL_rent_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) - vol_tier_reb_30D)/(1+WACC%/365)^30 
 
 ***If Add***
 DEL_own_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) - (DEL_reb_pl_30 + vol_tier_reb_30D + equip_fin_pl_30 + equip_main_pl_30))/(1+WACC%/365)^30 + cost_pl_on_owned_equip_pv
+
+DEL_buy_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) - (DEL_reb_pl_30 + vol_tier_reb_30D + equip_fin_pl_30 + equip_main_pl_30))/(1+WACC%/365)^30 + cost_pl_on_buy_equip_pv
 
 DEL_rent_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) - (DEL_reb_pl_30 + vol_tier_reb_30D))/(1+WACC%/365)^30
 
 **Rebate_adjustment_clause - Penalty Costs Scenario**
 
 RAC_DEL_own_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) + (TRANSPORT CHARGE / (SAVING) EXCL ZONE DIFF))/(1+WACC%/365)^30  + cost_pl_on_owned_equip_pv 
+RAC_DEL_buy_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) + (TRANSPORT CHARGE / (SAVING) EXCL ZONE DIFF))/(1+WACC%/365)^30  + cost_pl_on_buy_equip_pv 
 RAC_DEL_rent_total_cost_pl_pv = ((rtl_wholesale_Sup_Dep/100) + (TRANSPORT CHARGE / (SAVING) EXCL ZONE DIFF + equip_fin_pl_30 + equip_main_pl_30))/(1+WACC%/365)^30 
 
 

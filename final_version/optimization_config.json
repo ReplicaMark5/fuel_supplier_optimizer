@@ -5,7 +5,10 @@
     "tanker_cost_per_km": 15.5,
     "tanker_capacity": 30000,
     "cost_owned_equip_pv": 0.05,
-    "cost_buy_equip_pv": 0.08
+    "reorder_level": 0.30,
+    "min_drop_litres": 0,
+    "allow_multidrop": false,
+    "min_expected_fill_ratio": 1.0
   },
   "present_value_settings": {
     "base_rebate_terms": {
@@ -110,6 +113,18 @@
         }
       ]
     }
+  },
+  "supplier_del_capabilities": {
+    "description": "Defines which suppliers offer equipment rental for DEL options. If supplier not listed, defaults to rental available for backward compatibility.",
+    "Supplier A": {"offers_equipment_rental": false},
+    "Supplier C": {"offers_equipment_rental": true},
+    "Supplier D": {"offers_equipment_rental": true},
+    "Supplier F": {"offers_equipment_rental": true},
+    "Supplier G": {"offers_equipment_rental": false},
+    "Supplier H": {"offers_equipment_rental": true},
+    "Supplier I": {"offers_equipment_rental": true},
+    "Supplier J": {"offers_equipment_rental": false},
+    "Supplier L": {"offers_equipment_rental": true}
   },
   "supplier_depot_capacity_limits": {
     "description": "Maximum annual volume each supplier depot can supply (in litres). More realistic than supplier-level limits as it reflects terminal throughput constraints.",

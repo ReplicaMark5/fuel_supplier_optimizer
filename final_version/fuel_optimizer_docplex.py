@@ -67,8 +67,8 @@ class FuelDepotOptimizerDocplex:
             self.mapper = None
         
         # Option types (base, RAC, and volume tier enhanced)
-        self.base_option_types = ['coc_cash', 'coc_30', 'coc_45', 'coc_60', 'del_own', 'del_buy', 'del_rent']
-        self.rac_option_types = ['rac_coc_30', 'rac_del_own', 'rac_del_buy', 'rac_del_rent']
+        self.base_option_types = ['coc_cash', 'coc_30', 'coc_45', 'coc_60', 'del_own', 'del_rent']
+        self.rac_option_types = ['rac_coc_30', 'rac_del_own', 'rac_del_rent']
         self.tier_option_types = []  # Will be populated dynamically from cost data
         self.all_option_types = self.base_option_types + self.rac_option_types  # Tier options added dynamically
         

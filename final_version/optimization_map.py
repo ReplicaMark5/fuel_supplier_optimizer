@@ -137,13 +137,13 @@ class OptimizationMapper:
         available_costs = {}
         
         # Base cost options
-        base_options = ['coc_cash', 'coc_30', 'coc_45', 'coc_60', 'del_own', 'del_buy', 'del_rent']
+        base_options = ['coc_cash', 'coc_30', 'coc_45', 'coc_60', 'del_own', 'del_rent']
         for option in base_options:
             if option in cost_data and cost_data[option] is not None:
                 available_costs[option] = cost_data[option]
         
         # RAC penalty options
-        rac_options = ['rac_coc_30', 'rac_del_own', 'rac_del_buy', 'rac_del_rent']
+        rac_options = ['rac_coc_30', 'rac_del_own', 'rac_del_rent']
         rac_costs = {}
         for option in rac_options:
             if option in cost_data and cost_data[option] is not None:
@@ -414,7 +414,6 @@ class OptimizationMapper:
             'coc_45': 'COC NET45',
             'coc_60': 'COC NET60',
             'del_own': 'DEL Own Equipment',
-            'del_buy': 'DEL Buy Equipment', 
             'del_rent': 'DEL Rent Equipment'
         }
         
@@ -434,7 +433,6 @@ class OptimizationMapper:
         rac_options = {
             'rac_coc_30': 'RAC COC NET30',
             'rac_del_own': 'RAC DEL Own',
-            'rac_del_buy': 'RAC DEL Buy',
             'rac_del_rent': 'RAC DEL Rent'
         }
         

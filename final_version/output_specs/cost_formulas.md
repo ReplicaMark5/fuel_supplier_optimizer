@@ -71,12 +71,6 @@ Where:
 
 **Note**: No delivery fees are applied in the current implementation.
 
-#### DEL Buy Equipment  
-```
-del_buy_cost_pv = ((rtl_wholesale_per_litre - (DEL_reb_pl_30 + equip_fin_pl_30 + equip_main_pl_30)) / pv_net30) + 
-                  cost_buy_equip_pv 
-```
-
 #### DEL Rent Equipment
 ```
 del_rent_cost_pv = ((rtl_wholesale_per_litre - DEL_reb_pl_30) / pv_net30)
@@ -104,11 +98,6 @@ RAC DEL uses transport charges from delivery options table and are calculated ON
 #### RAC DEL Own Equipment
 ```
 rac_del_own_cost_pv = ((rtl_wholesale_per_litre + transport_charge_excl_zone) / pv_net30) + cost_owned_equip_pv
-```
-
-#### RAC DEL Buy Equipment
-```
-rac_del_buy_cost_pv = ((rtl_wholesale_per_litre + transport_charge_excl_zone) / pv_net30) + cost_buy_equip_pv
 ```
 
 #### RAC DEL Rent Equipment
@@ -172,21 +161,6 @@ del_own_tier_X = ((rtl_wholesale_per_litre - (del_tier_rebate + equip_fin_pl_30 
 ```
 - Equipment rebates (`equip_fin_pl_30`, `equip_main_pl_30`) are preserved in override mode
 
-#### DEL Buy Equipment with Volume Tier
-
-**Additive to Base (`"additive_to_base"`)** - Used by Supplier C:
-```
-del_buy_tier_X = ((rtl_wholesale_per_litre - (DEL_reb_pl_30 + del_tier_rebate + equip_fin_pl_30 + equip_main_pl_30)) / pv_net30) + 
-                 cost_buy_equip_pv 
-```
-
-**Override Base (`"override_base"`)** - Used by Supplier I:
-```
-del_buy_tier_X = ((rtl_wholesale_per_litre - (del_tier_rebate + equip_fin_pl_30 + equip_main_pl_30)) / pv_net30) + 
-                 cost_buy_equip_pv 
-```
-- Equipment rebates (`equip_fin_pl_30`, `equip_main_pl_30`) are preserved in override mode
-
 #### DEL Rent Equipment with Volume Tier
 
 **Additive to Base (`"additive_to_base"`)** - Used by Supplier C:
@@ -229,14 +203,20 @@ Tier options are named using the pattern:
 
 ### DEL Options  
 - Available only where `DEL_Valid_FK IS NOT NULL`
-- DEL Own/Buy require non-null `equip_fin_pl_30` and `equip_main_pl_30`
+- DEL Own requires non-null `equip_fin_pl_30` and `equip_main_pl_30`
 - DEL Rent requires only non-null `DEL_reb_pl_30`
+- **Equipment Rental Availability**: DEL Rent options are additionally filtered by `supplier_del_capabilities` configuration
+  - Only suppliers with `"offers_equipment_rental": true` will have del_rent options generated
+  - Suppliers with `"offers_equipment_rental": false` only offer DEL Own Equipment (customer-owned equipment)
+  - Default behavior: If supplier not listed in config, rental is assumed to be available (backward compatibility)
+- **Defensive Filtering**: Cost dictionary building includes additional rental availability checks to ensure business rules are enforced
 - No delivery fees currently implemented in the code
 
 ### RAC Options
 - Only calculated for suppliers with `rebate_adjustment_clause` contracts
 - Available for same depot-supplier combinations as base options
 - Use penalty pricing (no rebates)
+- RAC DEL Rent options additionally filtered by supplier rental availability (same rules as base DEL Rent)
 
 ### Volume Tier Options
 - Only calculated for suppliers matching `supplier_contract_configurations` where `contract_type` is `"volume_tier_rewards"`
@@ -244,6 +224,7 @@ Tier options are named using the pattern:
 - Transport modes filtered by `transport_modes` list (`COC` and/or `DEL`)
 - Only reward bands with non-zero rebate values are processed
 - Volume tier activation requires meeting minimum volume commitments in optimization
+- **DEL Rent Tier Options**: Additionally filtered by supplier rental availability (same rules as base DEL Rent)
 - **Current Implementation**: Supports both `"additive_to_base"` and `"override_base"` combination rules
 - **Supplier-Specific Rules**:
   - Supplier C: `additive_to_base` for COC and DEL
@@ -256,9 +237,9 @@ Tier options are named using the pattern:
 - `basic_parameters.tanker_cost_per_km`: Transport cost per kilometer
 - `basic_parameters.tanker_capacity`: Tanker capacity in litres
 - `basic_parameters.cost_owned_equip_pv`: Owned equipment cost (PV terms)
-- `basic_parameters.cost_buy_equip_pv`: Buy equipment cost (PV terms)
 - `international_fuel_prices`: Pricing for international depots
 - `supplier_contract_configurations`: Volume tier and RAC contract definitions
+- `supplier_del_capabilities`: Equipment rental availability per supplier (boolean `offers_equipment_rental` field)
 
 ### From Database
 - `rtl_wholesale`: Wholesale fuel prices (cents/litre for SA, R/litre for international)
@@ -273,8 +254,10 @@ Tier options are named using the pattern:
 2. **RAC Logic**: Penalty pricing when volume commitments not met (higher costs)
 3. **Volume Tier Logic**: Reward pricing when volume commitments met (lower costs)
 4. **Payment Terms**: COC supports multiple payment terms, DEL is always NET30
-5. **Equipment Options**: DEL has three equipment scenarios (own, buy, rent) with different cost structures
-6. **Volume Tier Processing**: Generated dynamically from supplier contract configurations with reward bands
-7. **Combination Rules**: Both "additive_to_base" and "override_base" fully implemented and tested
-8. **Supplier-Specific Logic**: Different suppliers use different combination rules as configured
-9. **Currency**: All calculations in South African Rands, input prices converted from cents where needed
+5. **Equipment Options**: DEL has two equipment scenarios (own, rent) with different cost structures
+6. **Equipment Rental Availability**: DEL rent options only available for suppliers configured as offering rental equipment
+7. **Volume Tier Processing**: Generated dynamically from supplier contract configurations with reward bands
+8. **Combination Rules**: Both "additive_to_base" and "override_base" fully implemented and tested
+9. **Supplier-Specific Logic**: Different suppliers use different combination rules as configured
+10. **Defensive Filtering**: Multiple layers of rental availability checking (calculation, validation, dictionary building)
+11. **Currency**: All calculations in South African Rands, input prices converted from cents where needed

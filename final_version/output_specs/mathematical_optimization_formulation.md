@@ -41,7 +41,7 @@ The fuel depot allocation optimizer is a binary integer programming model that m
 - **`W_b`**: Width of tier band `b` (max volume - min volume, or +∞ if unbounded)
 
 ### Cost Structure by Type
-All costs are **dynamically computed** from base costs minus rebates:
+All costs are **precomputed** from base costs minus rebates:
 - **Base Options**: `coc_cash`, `coc_30`, `coc_45`, `coc_60`, `del_own`, `del_buy`, `del_rent`
 - **RAC Penalties**: `rac_coc_30`, `rac_del_own`, `rac_del_buy`, `rac_del_rent` (committed volumes not met)
 - **Tier-Enhanced**: `base_option_tier_band_name` (e.g., `coc_30_tier_15M_to_20M`)
@@ -66,7 +66,7 @@ minimize ∑_{i∈I} ∑_{j∈J} ∑_{o∈O_base} V_i × C_{i,j,o} × x_{i,j,o} 
 - **Incremental Band Costs**: `C^0 × s_{i,j,o,0}` (base band) + `C^{rebated} × s_{i,j,o,b}` (tier bands with rebate)
 - **All-Units Options**: Tier-enhanced costs `C_{i,j,o}^tier` included in base options sum
 
-**Key Insight**: The objective **recomputes costs** dynamically rather than using precomputed costs, enabling regime-specific cost calculations through band volume splits.
+**Key Insight**: The objective uses **precomputed per-option costs** (base, RAC, tier), and in incremental contracts applies them per band via the s_{o,b} volumes.
 
 ## Constraints
 
@@ -269,22 +269,20 @@ def hard_zero_when(self, trigger_bvar, vars_to_zero):
         self.model.add_constraint(v <= (1 - trigger_bvar))
 ```
 
-### 3. Cost Recomposition (NOT Precomputed Costs)
-**Critical Discovery**: The implementation **recomputes costs dynamically** rather than using simple precomputed lookups:
+### 3. Cost Structure (Precomputed Costs)
+**Implementation**: The objective function uses **precomputed per-option costs** rather than dynamic recomposition:
 
 ```python
-# Objective function recomputes costs from band splits
-# Incremental regime: base_cost + (tier_cost - base_cost) × volume_split
-for contract in C_inc:
-    for band in B_c:
-        for alloc in allocations:
-            if tier_name.startswith('0_to_'):
-                cost_term += base_cost[alloc] × s[alloc,band]
-            else:
-                cost_term += tier_rebated_cost[alloc,band] × s[alloc,band]
+# Objective function uses precomputed costs from cost matrices
+# All costs (base, RAC, tier) are computed during preprocessing
+for depot_id in allocations:
+    for supplier_depot_id in allocations:
+        for option_type in allocations:
+            cost_per_litre = self.cost_matrices[depot_id][supplier_depot_id][option_type]
+            cost_term += cost_per_litre × volume × allocation_var
 ```
 
-This enables regime-specific cost applications through volume splitting rather than fixed precomputed costs.
+This enables efficient optimization using preprocessed cost lookups for all option types.
 
 ### 4. Volume Tier Regimes: Dual Implementation Approaches
 

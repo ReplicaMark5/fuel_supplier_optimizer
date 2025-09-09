@@ -77,6 +77,22 @@ class FuelOptimizationPrecomputation:
                 6: "Supplier H", 7: "Supplier I", 8: "Supplier J", 9: "Supplier L"
             }
     
+    def _supplier_offers_rental(self, supplier_id: int) -> bool:
+        """
+        Check if supplier offers equipment rental based on config.
+        
+        Args:
+            supplier_id: Supplier ID to check
+            
+        Returns:
+            bool: True if supplier offers rental, False otherwise.
+                  Defaults to True if not specified in config (backward compatibility)
+        """
+        supplier_name = self.supplier_id_to_name.get(supplier_id, f"Supplier {supplier_id}")
+        del_capabilities = self.config.get('supplier_del_capabilities', {})
+        supplier_config = del_capabilities.get(supplier_name, {"offers_equipment_rental": True})
+        return supplier_config.get('offers_equipment_rental', True)
+    
     def _load_coordinates_from_database(self) -> Dict[str, Dict[int, Dict[str, Any]]]:
         """
         Load depot coordinates from database for enhanced mapping.
@@ -161,6 +177,7 @@ class FuelOptimizationPrecomputation:
             cd.Annual_Volume_Litres as depot_annual_volume,
             cd.Cust_Depot_Name as customer_depot_name,
             cd.Fuel_Zone_ as customer_fuel_zone,
+            cd.Tankage_Size_Litres as tankage_size_litres,
             
             -- Supplier depot information  
             sd.Supply_Depot_Name,
@@ -223,6 +240,14 @@ class FuelOptimizationPrecomputation:
             
             logger.info(f"Loaded {len(df)} records from database")
             logger.info(f"Columns: {list(df.columns)}")
+            
+            # Handle tankage size column name variations
+            if 'tankage_size_litres' not in df.columns:
+                for alt in ['Tankage_Size_Litres', 'tankage_size', 'tank_size_litres']:
+                    if alt in df.columns:
+                        df = df.rename(columns={alt: 'tankage_size_litres'})
+                        logger.info(f"Mapped column {alt} to tankage_size_litres")
+                        break
             
             # Store raw data for reference
             self.raw_data = df.copy()
@@ -308,6 +333,53 @@ class FuelOptimizationPrecomputation:
         logger.info(f"PV factors calculated and cached: {pv_factors}")
         return pv_factors
     
+    def _compute_trans_cost_per_litre(self, df: pd.DataFrame, cfg: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Compute transport cost per litre accounting for partial tanker loads.
+        
+        Args:
+            df: DataFrame with transport data
+            cfg: Configuration dictionary
+            
+        Returns:
+            pd.DataFrame: Data with updated trans_cost_pl column
+        """
+        k_per_km = cfg['basic_parameters']['tanker_cost_per_km']
+        C = cfg['basic_parameters']['tanker_capacity']
+        r = cfg['basic_parameters'].get('reorder_level', 0.30)
+        min_drop = cfg['basic_parameters'].get('min_drop_litres', 0)
+        allow_multidrop = cfg['basic_parameters'].get('allow_multidrop', False)
+        min_fill = cfg['basic_parameters'].get('min_expected_fill_ratio', 1.0)
+
+        # Fallback: if tank size missing, assume full load
+        if 'tankage_size_litres' in df.columns:
+            tank = df['tankage_size_litres'].fillna(C)
+        else:
+            # Create tank column with full capacity for all rows
+            tank = pd.Series([C] * len(df), index=df.index)
+
+        # Delivered litres when the tank hits reorder (cap at C, floor at min_drop)
+        delivered = np.minimum(C, np.maximum(min_drop, (1.0 - r) * tank))
+
+        # Base fill ratio
+        base_fill_ratio = delivered / C
+
+        # Pooling adjustment
+        if allow_multidrop:
+            fill_ratio = np.maximum(base_fill_ratio, min_fill)
+        else:
+            fill_ratio = base_fill_ratio
+
+        # Numerical clamps
+        fill_ratio = np.clip(fill_ratio, 1e-6, 1.0)
+        effective_litres = C * fill_ratio
+
+        # Round trip distance = 2 * One_Way_Dist
+        round_trip_km = 2.0 * df['One_Way_Dist']
+        df['trans_cost_pl'] = (round_trip_km * k_per_km) / effective_litres
+
+        return df
+    
     def calculate_transport_costs(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Calculate transport costs for COC options.
@@ -318,15 +390,11 @@ class FuelOptimizationPrecomputation:
         Returns:
             pd.DataFrame: Data with transport costs added
         """
-        tanker_cost_per_km = self.config['basic_parameters']['tanker_cost_per_km']
-        tanker_capacity = self.config['basic_parameters']['tanker_capacity']
+        # Use new partial tanker load calculation for COC options
+        df = self._compute_trans_cost_per_litre(df, self.config)
         
-        # Only calculate transport costs for COC options where distance is available
-        df['trans_cost_pl'] = np.where(
-            df['COC_Valid_FK'].notna() & df['One_Way_Dist'].notna(),
-            (df['One_Way_Dist'] * 2 * tanker_cost_per_km) / tanker_capacity,
-            0  # No transport cost for DEL options or missing distances
-        )
+        # Set transport cost to 0 for DEL options or missing distances
+        df.loc[df['COC_Valid_FK'].isna() | df['One_Way_Dist'].isna(), 'trans_cost_pl'] = 0.0
         
         logger.info(f"Transport costs calculated for {(df['trans_cost_pl'] > 0).sum()} COC records")
         return df
@@ -347,7 +415,12 @@ class FuelOptimizationPrecomputation:
         
         # User-specified equipment costs (already in PV terms)
         cost_owned_equip_pv = self.config['basic_parameters']['cost_owned_equip_pv']
-        cost_buy_equip_pv = self.config['basic_parameters']['cost_buy_equip_pv']
+        
+        # === Single Source of Truth: Rental Availability ===
+        # Compute once, use everywhere - reduces duplication and maintenance overhead
+        df['is_rental_allowed'] = df['Supplier_FK'].apply(
+            lambda x: self._supplier_offers_rental(int(x)) if pd.notna(x) else False
+        )
         
         # === COC Option Calculations ===
         # Only calculate where COC is valid
@@ -356,28 +429,28 @@ class FuelOptimizationPrecomputation:
         # COC Cash (immediate payment)
         df['coc_cash_cost_pv'] = np.where(
             coc_mask & df['COC_reb_pl_cash'].notna(),
-            (df['rtl_wholesale_per_litre'] - df['COC_reb_pl_cash']) + df['trans_cost_pl'],
+            (df['rtl_wholesale_per_litre'] - df['COC_reb_pl_cash']) + df['trans_cost_pl'] + cost_owned_equip_pv,
             np.nan
         )
         
         # COC NET30 (30-day payment)
         df['coc_30_cost_pv'] = np.where(
             coc_mask & df['COC_reb_pl_30'].notna(),
-            ((df['rtl_wholesale_per_litre'] - df['COC_reb_pl_30']) / pv_factors['net30']) + df['trans_cost_pl'],
+            ((df['rtl_wholesale_per_litre'] - df['COC_reb_pl_30']) / pv_factors['net30']) + df['trans_cost_pl'] + cost_owned_equip_pv,
             np.nan
         )
         
         # COC NET45 (45-day payment)
         df['coc_45_cost_pv'] = np.where(
             coc_mask & df['COC_reb_pl_45'].notna(),
-            ((df['rtl_wholesale_per_litre'] - df['COC_reb_pl_45']) / pv_factors['net45']) + df['trans_cost_pl'],
+            ((df['rtl_wholesale_per_litre'] - df['COC_reb_pl_45']) / pv_factors['net45']) + df['trans_cost_pl'] + cost_owned_equip_pv,
             np.nan
         )
         
         # COC NET60 (60-day payment) 
         df['coc_60_cost_pv'] = np.where(
             coc_mask & df['COC_reb_pl_60'].notna(),
-            ((df['rtl_wholesale_per_litre'] - df['COC_reb_pl_60']) / pv_factors['net60']) + df['trans_cost_pl'],
+            ((df['rtl_wholesale_per_litre'] - df['COC_reb_pl_60']) / pv_factors['net60']) + df['trans_cost_pl'] + cost_owned_equip_pv,
             np.nan
         )
         
@@ -401,25 +474,17 @@ class FuelOptimizationPrecomputation:
             np.nan
         )
         
-        # DEL Buy Equipment
-        df['del_buy_cost_pv'] = np.where(
-            del_own_mask,  # Same availability as own equipment
-            ((df['rtl_wholesale_per_litre'] - 
-              (df['DEL_reb_pl_30'] + df['equip_fin_pl_30'] + df['equip_main_pl_30'])) / pv_30d) + 
-             cost_buy_equip_pv,
-            np.nan
-        )
         
-        # DEL Rent Equipment (no equipment financing/maintenance)
+        # DEL Rent Equipment (no equipment financing/maintenance) - use SOT rental availability
         df['del_rent_cost_pv'] = np.where(
-            del_mask & df['DEL_reb_pl_30'].notna(),
+            del_mask & df['DEL_reb_pl_30'].notna() & df['is_rental_allowed'],
             ((df['rtl_wholesale_per_litre'] - df['DEL_reb_pl_30']) / pv_30d),
             np.nan
         )
         
         # Log calculation results
         cost_columns = ['coc_cash_cost_pv', 'coc_30_cost_pv', 'coc_45_cost_pv', 'coc_60_cost_pv',
-                       'del_own_cost_pv', 'del_buy_cost_pv', 'del_rent_cost_pv']
+                       'del_own_cost_pv', 'del_rent_cost_pv']
         
         for col in cost_columns:
             available_count = df[col].notna().sum()
@@ -475,14 +540,13 @@ class FuelOptimizationPrecomputation:
         if not rac_enabled_supplier_ids:
             logger.info("No RAC-enabled suppliers found - skipping RAC calculations")
             # Initialize RAC columns with NaN (NET30 only)
-            rac_columns = ['rac_coc_30_cost_pv', 'rac_del_own_cost_pv', 'rac_del_buy_cost_pv', 'rac_del_rent_cost_pv']
+            rac_columns = ['rac_coc_30_cost_pv', 'rac_del_own_cost_pv', 'rac_del_rent_cost_pv']
             for col in rac_columns:
                 df[col] = np.nan
             return df
         
         pv_factors = self.calculate_present_value_factors()
         cost_owned_equip_pv = self.config['basic_parameters']['cost_owned_equip_pv']
-        cost_buy_equip_pv = self.config['basic_parameters']['cost_buy_equip_pv']
         
         # === RAC COC Calculations (no rebates, just wholesale + transport) ===
         # Only calculate for RAC-enabled suppliers and only NET30 terms
@@ -493,7 +557,7 @@ class FuelOptimizationPrecomputation:
         # RAC COC NET30 (ONLY NET30 for RAC penalties)
         df['rac_coc_30_cost_pv'] = np.where(
             rac_coc_mask,
-            (df['rtl_wholesale_per_litre'] / pv_factors['net30']) + df['trans_cost_pl'],
+            (df['rtl_wholesale_per_litre'] / pv_factors['net30']) + df['trans_cost_pl'] + cost_owned_equip_pv,
             np.nan
         )
         
@@ -525,24 +589,20 @@ class FuelOptimizationPrecomputation:
             np.nan
         )
         
-        # RAC DEL Buy Equipment  
-        # Formula: ((wholesale + transport_charge) / PV_30) + buy_equip_cost
-        df['rac_del_buy_cost_pv'] = np.where(
-            del_own_mask,
-            ((df['rtl_wholesale_per_litre'] + transport_charge_excl_zone) / pv_30d) + cost_buy_equip_pv,
-            np.nan
-        )
         
-        # RAC DEL Rent Equipment
+        # RAC DEL Rent Equipment - use SOT rental availability
         # Formula: ((wholesale + transport_charge + equip_fin + equip_main) / PV_30)
+        rac_rental_mask = (rac_del_mask & df['DEL_reb_pl_30'].notna() & 
+                          df['equip_fin_pl_30'].notna() & df['equip_main_pl_30'].notna())
+        
         df['rac_del_rent_cost_pv'] = np.where(
-            rac_del_mask & df['DEL_reb_pl_30'].notna() & df['equip_fin_pl_30'].notna() & df['equip_main_pl_30'].notna(),
+            rac_rental_mask & df['is_rental_allowed'],
             ((df['rtl_wholesale_per_litre'] + transport_charge_excl_zone + df['equip_fin_pl_30'] + df['equip_main_pl_30']) / pv_30d),
             np.nan
         )
         
         # Log RAC calculation results
-        rac_columns = ['rac_coc_30_cost_pv', 'rac_del_own_cost_pv', 'rac_del_buy_cost_pv', 'rac_del_rent_cost_pv']
+        rac_columns = ['rac_coc_30_cost_pv', 'rac_del_own_cost_pv', 'rac_del_rent_cost_pv']
         
         for col in rac_columns:
             available_count = df[col].notna().sum()
@@ -567,7 +627,6 @@ class FuelOptimizationPrecomputation:
         
         pv_factors = self.calculate_present_value_factors()
         cost_owned_equip_pv = self.config['basic_parameters']['cost_owned_equip_pv']
-        cost_buy_equip_pv = self.config['basic_parameters']['cost_buy_equip_pv']
         
         # Load supplier contract configurations
         contract_configs = self.config.get('supplier_contract_configurations', {})
@@ -624,7 +683,7 @@ class FuelOptimizationPrecomputation:
                                     df[tier_col] = np.nan
                                 df.loc[df.index[_], tier_col] = (
                                     (row['rtl_wholesale_per_litre'] - (row['COC_reb_pl_30'] + coc_rebate)) / pv_factors['net30']
-                                ) + row['trans_cost_pl']
+                                ) + row['trans_cost_pl'] + cost_owned_equip_pv
                                 
                                 tier_cost_count += 1
                             
@@ -635,7 +694,7 @@ class FuelOptimizationPrecomputation:
                                     df[tier_col] = np.nan
                                 df.loc[df.index[_], tier_col] = (
                                     (row['rtl_wholesale_per_litre'] - coc_rebate) / pv_factors['net30']
-                                ) + row['trans_cost_pl']
+                                ) + row['trans_cost_pl'] + cost_owned_equip_pv
                                 
                                 tier_cost_count += 1
                     
@@ -656,23 +715,15 @@ class FuelOptimizationPrecomputation:
                                          (row['DEL_reb_pl_30'] + del_rebate + row['equip_fin_pl_30'] + row['equip_main_pl_30'])) / pv_factors['net30']
                                     ) + cost_owned_equip_pv
                                 
-                                # DEL Buy Equipment
-                                if (pd.notna(row['equip_fin_pl_30']) and pd.notna(row['equip_main_pl_30'])):
-                                    tier_col = f'del_buy_tier{band_suffix}'
+                                
+                                # DEL Rent Equipment - use SOT rental availability
+                                if row['is_rental_allowed']:
+                                    tier_col = f'del_rent_tier{band_suffix}'
                                     if tier_col not in df.columns:
                                         df[tier_col] = np.nan
                                     df.loc[df.index[_], tier_col] = (
-                                        (row['rtl_wholesale_per_litre'] - 
-                                         (row['DEL_reb_pl_30'] + del_rebate + row['equip_fin_pl_30'] + row['equip_main_pl_30'])) / pv_factors['net30']
-                                    ) + cost_buy_equip_pv
-                                
-                                # DEL Rent Equipment
-                                tier_col = f'del_rent_tier{band_suffix}'
-                                if tier_col not in df.columns:
-                                    df[tier_col] = np.nan
-                                df.loc[df.index[_], tier_col] = (
-                                    (row['rtl_wholesale_per_litre'] - (row['DEL_reb_pl_30'] + del_rebate)) / pv_factors['net30']
-                                )
+                                        (row['rtl_wholesale_per_litre'] - (row['DEL_reb_pl_30'] + del_rebate)) / pv_factors['net30']
+                                    )
                                 
                                 tier_cost_count += 3
                             
@@ -687,23 +738,15 @@ class FuelOptimizationPrecomputation:
                                          (del_rebate + row['equip_fin_pl_30'] + row['equip_main_pl_30'])) / pv_factors['net30']
                                     ) + cost_owned_equip_pv
                                 
-                                # DEL Buy Equipment - tier rebate overrides base rebate, keep equipment rebates
-                                if (pd.notna(row['equip_fin_pl_30']) and pd.notna(row['equip_main_pl_30'])):
-                                    tier_col = f'del_buy_tier{band_suffix}'
+                                
+                                # DEL Rent Equipment - tier rebate overrides base rebate, use SOT rental availability
+                                if row['is_rental_allowed']:
+                                    tier_col = f'del_rent_tier{band_suffix}'
                                     if tier_col not in df.columns:
                                         df[tier_col] = np.nan
                                     df.loc[df.index[_], tier_col] = (
-                                        (row['rtl_wholesale_per_litre'] - 
-                                         (del_rebate + row['equip_fin_pl_30'] + row['equip_main_pl_30'])) / pv_factors['net30']
-                                    ) + cost_buy_equip_pv
-                                
-                                # DEL Rent Equipment - tier rebate overrides base rebate
-                                tier_col = f'del_rent_tier{band_suffix}'
-                                if tier_col not in df.columns:
-                                    df[tier_col] = np.nan
-                                df.loc[df.index[_], tier_col] = (
-                                    (row['rtl_wholesale_per_litre'] - del_rebate) / pv_factors['net30']
-                                )
+                                        (row['rtl_wholesale_per_litre'] - del_rebate) / pv_factors['net30']
+                                    )
                                 
                                 tier_cost_count += 3
         
@@ -733,7 +776,6 @@ class FuelOptimizationPrecomputation:
             'coc_45': 'coc_45_cost_pv',
             'coc_60': 'coc_60_cost_pv',
             'del_own': 'del_own_cost_pv',
-            'del_buy': 'del_buy_cost_pv', 
             'del_rent': 'del_rent_cost_pv'
         }
         
@@ -741,7 +783,6 @@ class FuelOptimizationPrecomputation:
         rac_cost_columns = {
             'rac_coc_30': 'rac_coc_30_cost_pv',
             'rac_del_own': 'rac_del_own_cost_pv',
-            'rac_del_buy': 'rac_del_buy_cost_pv', 
             'rac_del_rent': 'rac_del_rent_cost_pv'
         }
         
@@ -773,19 +814,31 @@ class FuelOptimizationPrecomputation:
             if supplier_depot_id not in cost_dict[depot_id]:
                 cost_dict[depot_id][supplier_depot_id] = {}
             
-            # Add available base cost options
+            # Add available base cost options with light tripwire
             for option, cost_col in cost_columns.items():
                 if pd.notna(row[cost_col]):
+                    # Light tripwire: warn and skip if del_rent appears for non-rental supplier
+                    if option == 'del_rent' and not row.get('is_rental_allowed', True):
+                        logger.warning(f"Unexpected del_rent option for non-rental supplier {row.get('supplier_name', supplier_id)}")
+                        continue
                     cost_dict[depot_id][supplier_depot_id][option] = round(row[cost_col], 6)
             
-            # Add available RAC penalty cost options
+            # Add available RAC penalty cost options with light tripwire
             for option, cost_col in rac_cost_columns.items():
                 if pd.notna(row[cost_col]):
+                    # Light tripwire: warn and skip if rac_del_rent appears for non-rental supplier
+                    if option == 'rac_del_rent' and not row.get('is_rental_allowed', True):
+                        logger.warning(f"Unexpected rac_del_rent option for non-rental supplier {row.get('supplier_name', supplier_id)}")
+                        continue
                     cost_dict[depot_id][supplier_depot_id][option] = round(row[cost_col], 6)
             
-            # Add available volume tier enhanced cost options
+            # Add available volume tier enhanced cost options with light tripwire
             for option, cost_col in tier_cost_columns.items():
                 if pd.notna(row[cost_col]):
+                    # Light tripwire: warn and skip if del_rent tier appears for non-rental supplier  
+                    if 'del_rent' in option and not row.get('is_rental_allowed', True):
+                        logger.warning(f"Unexpected del_rent tier option for non-rental supplier {row.get('supplier_name', supplier_id)}")
+                        continue
                     cost_dict[depot_id][supplier_depot_id][option] = round(row[cost_col], 6)
             
             # Add supplier and distance metadata to each cost entry
@@ -978,12 +1031,6 @@ class FuelOptimizationPrecomputation:
             base_rebate_pv = base_rebate / pv_factors['net30']
             equipment_cost = cost_owned_equip_pv
             
-        elif option == 'del_buy':
-            base_rebate = (row.get('DEL_reb_pl_30', 0.0) + 
-                          row.get('equip_fin_pl_30', 0.0) + 
-                          row.get('equip_main_pl_30', 0.0))
-            base_rebate_pv = base_rebate / pv_factors['net30']
-            equipment_cost = cost_buy_equip_pv
             
         elif option == 'del_rent':
             base_rebate = row.get('DEL_reb_pl_30', 0.0)
@@ -1140,6 +1187,9 @@ class FuelOptimizationPrecomputation:
         contract_config = self.config['supplier_contract_configurations'][tier_name]
         rebate_combination = contract_config.get('rebate_combination', 'additive_to_base')
         
+        # Get equipment cost for COC calculations
+        cost_owned_equip_pv = self.config['basic_parameters']['cost_owned_equip_pv']
+        
         # Get volume tier reward bands - calculate cost for each non-zero rebate band
         reward_bands = contract_config['reward_bands']
         valid_bands = []
@@ -1184,13 +1234,13 @@ class FuelOptimizationPrecomputation:
                     band_key = f"coc_30_tier_{min_vol//1000000}M_to_{max_vol//1000000}M"
                 
                 if rebate_combination == 'override_base':
-                    # Override: ((wholesale/100) - vol_tier_rebate) / (1+WACC/365)^30 + transport
+                    # Override: ((wholesale/100) - vol_tier_rebate) / (1+WACC/365)^30 + transport + equipment
                     tier_cost = ((wholesale_price - coc_rebate_rate) / pv_factors['net30'] + 
-                               transport_cost_per_litre)
+                               transport_cost_per_litre + cost_owned_equip_pv)
                 elif rebate_combination == 'additive_to_base':
-                    # Add: ((wholesale/100) - (base_rebate + vol_tier_rebate)) / (1+WACC/365)^30 + transport
+                    # Add: ((wholesale/100) - (base_rebate + vol_tier_rebate)) / (1+WACC/365)^30 + transport + equipment
                     tier_cost = ((wholesale_price - (base_coc_30_rebate + coc_rebate_rate)) / pv_factors['net30'] + 
-                               transport_cost_per_litre)
+                               transport_cost_per_litre + cost_owned_equip_pv)
                 else:
                     logger.warning(f"Unknown rebate combination: {rebate_combination}")
                     return {}
@@ -1198,7 +1248,7 @@ class FuelOptimizationPrecomputation:
                 tier_costs[band_key] = tier_cost
             
         if 'DEL' in tier_modes:
-            # For DEL volume tiers: calculate del_own, del_buy, del_rent using NET30 terms
+            # For DEL volume tiers: calculate del_own, del_rent using NET30 terms
             base_del_rebate = row.get('DEL_reb_pl_30', 0) or 0
             equip_fin = row.get('equip_fin_pl_30', 0) or 0
             equip_main = row.get('equip_main_pl_30', 0) or 0
@@ -1206,7 +1256,6 @@ class FuelOptimizationPrecomputation:
             
             # Get equipment costs from config (PV terms)
             cost_owned_equip_pv = self.config['basic_parameters'].get('cost_owned_equip_pv', 0.05)
-            cost_buy_equip_pv = self.config['basic_parameters'].get('cost_buy_equip_pv', 0.08)
             
             for i, band in enumerate(valid_bands):
                 del_rebate_rate = band.get('del_rebate', 0) or 0
@@ -1228,12 +1277,12 @@ class FuelOptimizationPrecomputation:
                     del_own_cost = ((wholesale_price - (del_rebate_rate + equip_fin + equip_main)) / pv_factors['net30'] + 
                                    cost_owned_equip_pv)
                     
-                    # DEL_buy: Same but with buy equipment cost
-                    del_buy_cost = ((wholesale_price - (del_rebate_rate + equip_fin + equip_main)) / pv_factors['net30'] + 
-                                   cost_buy_equip_pv)
                     
-                    # DEL_rent: ((wholesale/100) - vol_tier_reb)/PV30 (no equipment costs)
-                    del_rent_cost = ((wholesale_price - del_rebate_rate) / pv_factors['net30'])
+                    # DEL_rent: ((wholesale/100) - vol_tier_reb)/PV30 (no equipment costs) - use SOT lookup
+                    if self._supplier_offers_rental(int(row['Supplier_FK'])):
+                        del_rent_cost = ((wholesale_price - del_rebate_rate) / pv_factors['net30'])
+                    else:
+                        del_rent_cost = None
                     
                 elif rebate_combination == 'additive_to_base':
                     # Add: Use DEL_reb_pl_30 + vol_tier_reb, keep equipment costs
@@ -1241,20 +1290,20 @@ class FuelOptimizationPrecomputation:
                     del_own_cost = ((wholesale_price - (base_del_rebate + del_rebate_rate + equip_fin + equip_main)) / pv_factors['net30'] + 
                                    cost_owned_equip_pv)
                     
-                    # DEL_buy: Same but with buy equipment cost
-                    del_buy_cost = ((wholesale_price - (base_del_rebate + del_rebate_rate + equip_fin + equip_main)) / pv_factors['net30'] + 
-                                   cost_buy_equip_pv)
                     
-                    # DEL_rent: ((wholesale/100) - (DEL_reb + vol_tier_reb))/PV30
-                    del_rent_cost = ((wholesale_price - (base_del_rebate + del_rebate_rate)) / pv_factors['net30'])
+                    # DEL_rent: ((wholesale/100) - (DEL_reb + vol_tier_reb))/PV30 - use SOT lookup
+                    if self._supplier_offers_rental(int(row['Supplier_FK'])):
+                        del_rent_cost = ((wholesale_price - (base_del_rebate + del_rebate_rate)) / pv_factors['net30'])
+                    else:
+                        del_rent_cost = None
                 else:
                     logger.warning(f"Unknown rebate combination: {rebate_combination}")
                     continue
                     
                 # Add DEL tier costs to result
                 tier_costs[f"del_own_{band_suffix}"] = del_own_cost
-                tier_costs[f"del_buy_{band_suffix}"] = del_buy_cost
-                tier_costs[f"del_rent_{band_suffix}"] = del_rent_cost
+                if del_rent_cost is not None:
+                    tier_costs[f"del_rent_{band_suffix}"] = del_rent_cost
             
         return tier_costs
     
