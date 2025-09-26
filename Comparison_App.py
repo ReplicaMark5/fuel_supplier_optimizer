@@ -14,6 +14,11 @@ import random
 import optuna
 from scipy.spatial.distance import cdist  # For distance between Pareto points
 from Hybrid_optimizer import run_hybrid
+from pareto_metrics import (
+    aggregate_operational_metrics,
+    compare_fronts,
+    summarise_operational_metrics,
+)
 
 def generate_supplier_ranking(allocations_str, optimizer_instance):
     """
@@ -167,6 +172,15 @@ with st.sidebar:
         # Operator Definitions 
         st.markdown("Operator Definitions")
         indpb = st.slider("Mutation Rate per Gene", 0.0, 1.0, 0.05, help="Probability of mutation per gene in an individual")
+        nsga_replications = st.number_input(
+            "NSGA-II Replications",
+            min_value=1,
+            max_value=50,
+            value=1,
+            help="Run NSGA-II multiple times with different seeds for robustness analysis",
+        )
+    else:
+        nsga_replications = 1
     
 
     # ε-Constraint Parameters
@@ -242,50 +256,48 @@ if st.session_state.get('data_loaded', False):
                 if optimization_method == "NSGA-II":
                     if 'nsga_optimizer' in st.session_state:
                         nsga_optimizer = st.session_state.nsga_optimizer
-                        final_population = nsga_optimizer.optimize(
-                            ngen=n_gen,
-                            mu=pop_size,
-                            lambda_=offspring_size,
-                            cxpb=crossover_prob,
-                            mutpb=mutation_prob,
-                            indpb=indpb
-                        )
-                        df_nsga = nsga_optimizer.extract_pareto_front(final_population)
-                        df_nsga['method'] = 'NSGA-II'
+
+                        nsga_runs = []
+                        nsga_metadata_runs = []
+                        nsga_generation_logs = []
+
+                        for rep in range(int(nsga_replications)):
+                            seed_value = int(random_seed + rep) if random_seed is not None else None
+                            df_nsga_run = nsga_optimizer.run_full_optimization(
+                                ngen=n_gen,
+                                mu=pop_size,
+                                lambda_=offspring_size,
+                                cxpb=crossover_prob,
+                                mutpb=mutation_prob,
+                                indpb=indpb,
+                                seed=seed_value,
+                                log_history=True
+                            )
+
+                            run_metadata = getattr(nsga_optimizer, "last_run_metadata", {})
+                            run_id = run_metadata.get("run_id", f"nsga_run_{rep+1}")
+                            df_nsga_run = df_nsga_run.assign(
+                                method='NSGA-II',
+                                run_id=run_id,
+                                replication=rep + 1
+                            )
+                            nsga_runs.append(df_nsga_run)
+
+                            if run_metadata:
+                                nsga_metadata_runs.append(dict(run_metadata))
+
+                            generation_log = getattr(nsga_optimizer, "last_generation_log", None)
+                            if generation_log is not None:
+                                gen_copy = generation_log.copy()
+                                gen_copy["replication"] = rep + 1
+                                nsga_generation_logs.append(gen_copy)
+
+                        df_nsga = pd.concat(nsga_runs, ignore_index=True) if nsga_runs else pd.DataFrame()
+
                         st.session_state.results_nsga = df_nsga
-
-                        
-                        # Compute evaluation metrics for NSGA-II
-                        objectives = df_nsga[['cost', 'score']].values
-
-                        # Hypervolume
-                        ref_point = [df_nsga['cost'].max() + 1, df_nsga['score'].max() + 1]
-                        def compute_hv(points, ref):
-                            hv = 0.0
-                            sorted_points = sorted(points, key=lambda x: x[0])
-                            prev_score = ref[1]
-                            for cost, score in sorted_points:
-                                width = ref[0] - cost
-                                height = prev_score - score
-                                hv += width * height
-                                prev_score = score
-                            return hv
-
-                        # Spread
-                        def compute_spread(points):
-                            points = sorted(points, key=lambda x: x[0])
-                            distances = [np.linalg.norm(np.array(points[i]) - np.array(points[i-1])) for i in range(1, len(points))]
-                            avg_d = np.mean(distances)
-                            spread = sum(abs(d - avg_d) for d in distances) / (len(distances) * avg_d) if avg_d != 0 else 0
-                            return spread
-
-                        hv = compute_hv(objectives, ref_point)
-                        spread = compute_spread(objectives)
-                        num_nd = len(objectives)
-
-                        st.session_state.hv = hv
-                        st.session_state.spread = spread
-                        st.session_state.num_nd = num_nd
+                        st.session_state.nsga_metadata_runs = nsga_metadata_runs
+                        if nsga_generation_logs:
+                            st.session_state.nsga_generation_log = pd.concat(nsga_generation_logs, ignore_index=True)
 
                     else:
                         st.error("❌ NSGA-II optimizer not initialized. Please click 'Initialize & Analyze Data' first.")
@@ -293,13 +305,14 @@ if st.session_state.get('data_loaded', False):
                 elif optimization_method == "ε-Constraint":
                     if 'econst_optimizer' in st.session_state:
                         econst_optimizer = st.session_state.econst_optimizer
-                        df_econst = econst_optimizer.optimize_epsilon_constraint(
+                        df_econst = econst_optimizer.run_full_optimization(
                             n_points=n_points,
                             constraint_type=constraint_type
                         )
-                        df_econst = df_econst[df_econst['status'] == 'Optimal']
+                        df_econst = df_econst[df_econst['status'] == 'Optimal'].copy()
                         df_econst['method'] = 'ε-Constraint'
                         st.session_state.results_econst = df_econst
+                        st.session_state.econst_metadata = getattr(econst_optimizer, "last_run_metadata", {})
                     else:
                         st.error("❌ ε-Constraint optimizer not initialized. Please click 'Initialize & Analyze Data' first.")
                 
@@ -322,10 +335,12 @@ if st.session_state.get('data_loaded', False):
                                 ngen=n_gen,
                                 mu=pop_size,
                                 lambda_=offspring_size,
-                                seed_individuals=seed_individuals
+                                seed_individuals=seed_individuals,
+                                seed=random_seed
                             )
                             df_hybrid['method'] = 'Hybrid'
                             st.session_state.results_hybrid = df_hybrid
+                            st.session_state.hybrid_metadata = getattr(nsga_optimizer, "last_run_metadata", {})
                     else:
                         st.error("❌ Hybrid optimizer not properly initialized. Please click 'Initialize & Analyze Data' first.")
 
@@ -435,7 +450,125 @@ if any(key in st.session_state for key in ['results_nsga', 'results_econst', 're
         df_combined = pd.DataFrame()
     
     st.divider()
-    
+
+    metrics_container = st.container()
+    with metrics_container:
+        st.subheader("📐 Quantitative Comparison")
+
+        method_metric_rows = []
+        pairwise_rows = []
+
+        if not df_econst.empty and not df_nsga.empty:
+            comparison = compare_fronts(
+                df_econst,
+                df_nsga,
+                method_a='ε-Constraint',
+                method_b='NSGA-II'
+            )
+            comparison_label = 'ε-Constraint vs NSGA-II'
+            for method_name, values in comparison['methods'].items():
+                row = {
+                    'comparison': comparison_label,
+                    'method': values.get('label', method_name),
+                    'points': values.get('points'),
+                    'hypervolume': values.get('hypervolume'),
+                    'igd': values.get('igd'),
+                    'spacing': values.get('spacing'),
+                }
+                method_metric_rows.append(row)
+            pairwise_rows.append({
+                'comparison': comparison_label,
+                'coverage_a_dom_b': comparison['pairwise'].get('coverage_a_dom_b'),
+                'coverage_b_dom_a': comparison['pairwise'].get('coverage_b_dom_a'),
+            })
+
+        if not df_hybrid.empty and not df_nsga.empty:
+            comparison = compare_fronts(
+                df_hybrid,
+                df_nsga,
+                method_a='Hybrid',
+                method_b='NSGA-II'
+            )
+            comparison_label = 'Hybrid vs NSGA-II'
+            for method_name, values in comparison['methods'].items():
+                row = {
+                    'comparison': comparison_label,
+                    'method': values.get('label', method_name),
+                    'points': values.get('points'),
+                    'hypervolume': values.get('hypervolume'),
+                    'igd': values.get('igd'),
+                    'spacing': values.get('spacing'),
+                }
+                method_metric_rows.append(row)
+            pairwise_rows.append({
+                'comparison': comparison_label,
+                'coverage_a_dom_b': comparison['pairwise'].get('coverage_a_dom_b'),
+                'coverage_b_dom_a': comparison['pairwise'].get('coverage_b_dom_a'),
+            })
+
+        if not df_econst.empty and not df_hybrid.empty:
+            comparison = compare_fronts(
+                df_econst,
+                df_hybrid,
+                method_a='ε-Constraint',
+                method_b='Hybrid'
+            )
+            comparison_label = 'ε-Constraint vs Hybrid'
+            for method_name, values in comparison['methods'].items():
+                row = {
+                    'comparison': comparison_label,
+                    'method': values.get('label', method_name),
+                    'points': values.get('points'),
+                    'hypervolume': values.get('hypervolume'),
+                    'igd': values.get('igd'),
+                    'spacing': values.get('spacing'),
+                }
+                method_metric_rows.append(row)
+            pairwise_rows.append({
+                'comparison': comparison_label,
+                'coverage_a_dom_b': comparison['pairwise'].get('coverage_a_dom_b'),
+                'coverage_b_dom_a': comparison['pairwise'].get('coverage_b_dom_a'),
+            })
+
+        metrics_cols = st.columns(2)
+
+        if method_metric_rows:
+            metrics_df = pd.DataFrame(method_metric_rows)
+            with metrics_cols[0]:
+                st.markdown("**Front Quality Indicators**")
+                st.dataframe(metrics_df, use_container_width=True, hide_index=True)
+        else:
+            with metrics_cols[0]:
+                st.info("Run at least two methods to compute comparative Pareto indicators.")
+
+        if pairwise_rows:
+            pairwise_df = pd.DataFrame(pairwise_rows)
+            with metrics_cols[1]:
+                st.markdown("**Dominance Coverage**")
+                st.dataframe(pairwise_df, use_container_width=True, hide_index=True)
+        else:
+            with metrics_cols[1]:
+                st.info("Dominance metrics require two fronts to compare.")
+
+        optimizer_for_ops = st.session_state.get('optimizer_instance')
+        op_rows = []
+        for label, df_front in (
+            ('NSGA-II', df_nsga),
+            ('ε-Constraint', df_econst),
+            ('Hybrid', df_hybrid),
+        ):
+            metrics_df_ops = aggregate_operational_metrics(df_front, optimizer_for_ops)
+            if not metrics_df_ops.empty:
+                summary = summarise_operational_metrics(metrics_df_ops)
+                if summary:
+                    summary['method'] = label
+                    op_rows.append(summary)
+
+        if op_rows:
+            op_df = pd.DataFrame(op_rows)
+            st.markdown("**Operational KPIs (mean ± variability)**")
+            st.dataframe(op_df, use_container_width=True, hide_index=True)
+
     # Interactive Pareto Front Plot (full width)
     st.subheader("📈 Interactive Pareto Front Comparison")
     
@@ -798,13 +931,35 @@ if any(key in st.session_state for key in ['results_nsga', 'results_econst', 're
         display_df.columns = ['Total Cost', 'Score', 'Method', 'Allocation']
         st.dataframe(display_df, use_container_width=True)
 
-    if all(k in st.session_state for k in ['hv', 'spread', 'num_nd']):
-        st.subheader("📈 Evaluation Metrics")
-        with st.expander("View All Evaluation Metrics", expanded=False):
-            st.metric("Hypervolume", f"{st.session_state.hv:.2f}")
-            st.metric("Non-Dominated Solutions", f"{st.session_state.num_nd}")
-            st.metric("Spread", f"{st.session_state.spread:.4f}")
+    metadata_tabs = st.tabs(["NSGA-II Runs", "ε-Constraint Run", "Hybrid Run"])
 
+    with metadata_tabs[0]:
+        metadata_runs = st.session_state.get('nsga_metadata_runs', [])
+        if metadata_runs:
+            st.dataframe(pd.DataFrame(metadata_runs), use_container_width=True)
+        else:
+            st.info("Run NSGA-II to see metadata.")
+
+    with metadata_tabs[1]:
+        econst_metadata = st.session_state.get('econst_metadata')
+        if econst_metadata:
+            st.dataframe(pd.DataFrame([econst_metadata]), use_container_width=True)
+        else:
+            st.info("Run the ε-Constraint optimizer to see metadata.")
+
+    with metadata_tabs[2]:
+        hybrid_metadata = st.session_state.get('hybrid_metadata')
+        if hybrid_metadata:
+            st.dataframe(pd.DataFrame([hybrid_metadata]), use_container_width=True)
+        else:
+            st.info("Run the hybrid optimizer to see metadata.")
+
+    if 'nsga_generation_log' in st.session_state:
+        with st.expander("NSGA-II Convergence Log", expanded=False):
+            st.dataframe(
+                st.session_state.nsga_generation_log,
+                use_container_width=True,
+            )
 
     # Welcome screen
     st.info("Use the sidebar to configure your data file and click **Initialize & Analyze Data** to get started!")

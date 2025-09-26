@@ -377,3 +377,64 @@
 - **Cost Analysis**: Comprehensive route-level cost option exploration
 - **Business Rule Enforcement**: Volume tier activation and penalty cost application
 - **Performance Excellence**: Sub-second execution across all system components
+
+
+
+
+
+### e-constraint
+  Current Implementation (Correct for your goal):
+
+  # ✅ This is exactly what you want
+  optimizer.set_objective(
+      objective_mode="epsilon_constraint",
+      strategic_constraint=strategic_constraint  # Supplier score as constraint
+  )
+
+  What this means:
+  - Objective: Minimize cost (primary goal)
+  - Constraint: Supplier score ≥ ε (secondary goal)
+
+  📊 Why This is Correct for Your Use Case:
+
+  Primary Goal: Lowest Cost
+
+  - The optimizer will always find the minimum cost solution
+  - Cost minimization is the driving objective in every iteration
+
+  Secondary Goal: Supplier Score
+
+  - The supplier score becomes a quality constraint
+  - As you increase ε, you're saying: "Find me the cheapest solution that meets at least this supplier score threshold"
+
+  🔄 How This Plays Out in Practice:
+
+  | ε Value | What it Means                                              | Result                               |
+  |---------|------------------------------------------------------------|--------------------------------------|
+  | ε = 0   | "Find cheapest solution, ignore supplier score"            | Minimum cost, any supplier score     |
+  | ε = 10  | "Find cheapest solution with supplier score ≥ 10"          | Lowest cost meeting this threshold   |
+  | ε = 20  | "Find cheapest solution with supplier score ≥ 20"          | Lowest cost meeting higher threshold |
+  | ε = max | "Find cheapest solution with best possible supplier score" | Maximum supplier score solution      |
+
+
+
+    Primary Goal:  Minimize Cost (objective function)
+  Secondary Goal: Maximize Supplier Score (constraint)
+
+  This means:
+  1. Every solution on your Pareto front is cost-optimal for its supplier score level
+  2. You're making explicit trade-offs: "How much extra cost am I willing to pay for a better supplier score?"
+  3. The leftmost point on your Pareto front will be the pure cost-minimization solution
+  4. Each point to the right shows the cost impact of requiring better supplier scores
+
+  📈 Your Pareto Front Will Show:
+
+  High Supplier Score ◉───◉───◉───◉
+                       │   │   │   │
+                       │   │   │   │
+                       │   │   │   │
+  Low Cost ────────────◉───◉───◉───◉
+                      Low    High
+                  Supplier Score
+
+  Moving right = higher supplier score requirement = higher cost

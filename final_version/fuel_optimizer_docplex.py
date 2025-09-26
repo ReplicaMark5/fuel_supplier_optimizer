@@ -12,7 +12,7 @@ This implementation uses the high-level docplex modeling API which provides:
 
 import json
 import logging
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 from pathlib import Path
 
 try:
@@ -35,10 +35,11 @@ class FuelDepotOptimizerDocplex:
     Much cleaner implementation using high-level modeling API.
     """
     
-    def __init__(self, precomputed_data: Dict[str, Any], config_path: str = "optimization_config.json"):
+    def __init__(self, precomputed_data: Dict[str, Any], config_path: str = "optimization_config.json", db_path: str = "fuel_data.db"):
         """Initialize optimizer with precomputed cost data."""
         self.precomputed_data = precomputed_data
         self.config_path = config_path
+        self.db_path = db_path
         
         # Create DOcplex model
         self.model = Model(name="FuelDepotAllocation")
@@ -74,6 +75,9 @@ class FuelDepotOptimizerDocplex:
         
         # Load configuration
         self._load_configuration()
+        
+        # Load country constraint configuration  
+        self.country_constraints = self._load_country_constraints()
 
         logger.info("FuelDepotOptimizerDocplex initialized")
 
@@ -130,6 +134,25 @@ class FuelDepotOptimizerDocplex:
             logger.warning(f"Could not load config: {e}")
             self.contract_configurations = {}
             self.supplier_depot_capacity_limits = {}
+    
+    def _load_country_constraints(self):
+        """Load country allocation constraint configuration."""
+        try:
+            with open(self.config_path, 'r') as f:
+                config = json.load(f)
+            country_config = config.get('country_allocation_constraints', {})
+            
+            if country_config.get('enabled', False):
+                logger.info(f"Country allocation constraints enabled")
+                restrictions = country_config.get('cross_border_restrictions', {})
+                logger.info(f"Loaded cross-border restrictions for {len(restrictions)} countries")
+                return country_config
+            else:
+                logger.info("Country allocation constraints disabled")
+                return {'enabled': False}
+        except Exception as e:
+            logger.warning(f"Could not load country constraints config: {e}")
+            return {'enabled': False}
     
     def _get_tiering_regime(self, contract_config) -> str:
         """Get the tiering regime for a contract, defaulting to 'all_units'."""
@@ -204,7 +227,26 @@ class FuelDepotOptimizerDocplex:
         total_combinations = sum(len(sd) for sd in self.cost_matrices.values())
         logger.info(f"Prepared {total_combinations} depot-supplier combinations")
         logger.info(f"Discovered {len(self.tier_option_types)} volume tier enhanced cost options: {self.tier_option_types[:5]}...")
+        
+        # Prepare strategic supplier scores
+        self._prepare_strategic_scores()
+        
         return self
+    
+    def _prepare_strategic_scores(self):
+        """Prepare strategic scores for suppliers used in the optimization."""
+        logger.info("Preparing strategic supplier scores...")
+        
+        # Get mapping from supplier IDs to names
+        supplier_id_to_name = {}
+        for supplier_depot_data in self.supplier_depots.values():
+            supplier_id = supplier_depot_data.get('supplier_id')
+            supplier_name = supplier_depot_data.get('supplier_name', f'Supplier {supplier_id}')
+            if supplier_id is not None:
+                supplier_id_to_name[supplier_id] = supplier_name
+        
+        # Strategic scores are now included in the cost dictionary from precomputation
+        logger.info("Strategic scores available from precomputed cost dictionary")
     
     def create_decision_variables(self):
         """Create decision variables using docplex."""
@@ -286,16 +328,19 @@ class FuelDepotOptimizerDocplex:
         logger.info(f"Created {allocation_count} allocation variables + {len(self.tier_vars)} RAC variables + {tier_band_count} tier band variables + {additional_vars_count} regime-specific variables")
         return self
     
-    def set_objective(self):
+    def set_objective(self, objective_mode="cost_only", strategic_constraint=None):
         """
-        Set simplified objective function using all precomputed costs directly.
+        Set objective function supporting multi-objective optimization.
         
-        All cost options (base, RAC, and volume tier enhanced) are now precomputed 
-        and available in the cost matrix, so we can use them directly.
+        Args:
+            objective_mode: "cost_only", "strategic_only", or "epsilon_constraint"
+            strategic_constraint: Minimum strategic score constraint for ε-constraint method
         """
-        logger.info("Setting up objective function with all precomputed costs...")
+        logger.info(f"Setting up objective function (mode: {objective_mode})...")
         
-        objective_terms = []
+        # Build cost objective (always needed)
+        cost_terms = []
+        strategic_terms = []
         
         # Identify incremental contracts to exclude from base objective
         incremental_contracts = {}
@@ -347,7 +392,13 @@ class FuelDepotOptimizerDocplex:
                 continue
             
             # Add cost term to objective
-            objective_terms.append(total_cost * allocation_var)
+            cost_terms.append(total_cost * allocation_var)
+            
+            # Add strategic score term (for strategic objective)
+            supplier_depot_data = self.cost_matrices.get(depot_id, {}).get(supplier_depot_id, {})
+            strategic_score = supplier_depot_data.get('strategic_score', 0.0)
+            if strategic_score > 0:
+                strategic_terms.append(strategic_score * allocation_var)
         
         # Add incremental band-split cost terms
         for contract_name, contract_config in incremental_contracts.items():
@@ -369,7 +420,7 @@ class FuelDepotOptimizerDocplex:
                                 try:
                                     base_cost_per_litre = float(base_cost_per_litre)
                                     # Add base band cost: base_cost_per_litre * s_{o,base}
-                                    objective_terms.append(base_cost_per_litre * band_var)
+                                    cost_terms.append(base_cost_per_litre * band_var)
                                 except (ValueError, TypeError):
                                     logger.warning(f"Invalid base cost for {option_key} base band {tier_name}: {base_cost_per_litre}")
                             else:
@@ -384,7 +435,7 @@ class FuelDepotOptimizerDocplex:
                                     try:
                                         tier_cost_per_litre = float(tier_cost_per_litre)
                                         # Add band cost: cost_per_litre * s_{o,b}
-                                        objective_terms.append(tier_cost_per_litre * band_var)
+                                        cost_terms.append(tier_cost_per_litre * band_var)
                                     except (ValueError, TypeError):
                                         logger.warning(f"Invalid tier cost for {option_key} band {tier_name}: {tier_cost_per_litre}")
                                 else:
@@ -392,11 +443,40 @@ class FuelDepotOptimizerDocplex:
                             else:
                                 raise ValueError(f"Missing tier cost for {tier_option_type} at depot {depot_id}/supplier_depot {supplier_depot_id}")
         
-        # Set objective: minimize total cost
-        objective_expr = self.model.sum(objective_terms)
-        self.model.minimize(objective_expr)
+        # Set objective based on mode
+        if objective_mode == "cost_only":
+            # Minimize cost only
+            cost_expr = self.model.sum(cost_terms)
+            self.model.minimize(cost_expr)
+            logger.info(f"Cost minimization objective set with {len(cost_terms)} cost terms")
+            
+        elif objective_mode == "strategic_only":
+            # Maximize strategic score only
+            strategic_expr = self.model.sum(strategic_terms)
+            self.model.maximize(strategic_expr)
+            logger.info(f"Strategic score maximization objective set with {len(strategic_terms)} strategic terms")
+            
+        elif objective_mode == "epsilon_constraint":
+            # ε-constraint method: minimize cost subject to strategic score constraint
+            cost_expr = self.model.sum(cost_terms)
+            strategic_expr = self.model.sum(strategic_terms)
+            
+            self.model.minimize(cost_expr)
+            
+            if strategic_constraint is not None:
+                # Add constraint: strategic score >= strategic_constraint
+                self.model.add_constraint(strategic_expr >= strategic_constraint, 
+                                        ctname=f"strategic_constraint_{strategic_constraint}")
+                logger.info(f"ε-constraint objective set: minimize cost subject to strategic score >= {strategic_constraint}")
+            else:
+                logger.warning("ε-constraint mode specified but no strategic_constraint provided")
+            
+            logger.info(f"ε-constraint objective set with {len(cost_terms)} cost terms and strategic constraint")
         
-        logger.info(f"Objective function set with {len(objective_terms)} cost terms")
+        else:
+            valid_modes = ["cost_only", "strategic_only", "epsilon_constraint"]
+            raise ValueError(f"Invalid objective_mode: {objective_mode}. Valid modes: {valid_modes}")
+        
         return self
     
     def _add_all_units_constraints(self, contract_name: str, contract_config: Dict) -> int:
@@ -644,6 +724,63 @@ class FuelDepotOptimizerDocplex:
         logger.debug(f"Added {constraint_count} incremental constraints for {contract_name}")
         return constraint_count
     
+    def _add_country_allocation_constraints(self) -> int:
+        """Add country-based allocation constraints."""
+        if not self.country_constraints.get('enabled', False):
+            return 0
+        
+        logger.info("Adding country allocation constraints...")
+        constraint_count = 0
+        blocked_allocations = 0
+        
+        cross_border_restrictions = self.country_constraints.get('cross_border_restrictions', {})
+        
+        for (depot_id, supplier_depot_id, option_type), allocation_var in self.allocation_vars.items():
+            # Get customer depot country
+            customer_country = self.customer_depots.get(depot_id, {}).get('country')
+            
+            # Get supplier depot country from cost matrix metadata
+            supplier_country = self.cost_matrices.get(depot_id, {}).get(supplier_depot_id, {}).get('supplier_depot_country')
+            
+            # Skip if either country is missing
+            if not customer_country or not supplier_country:
+                if not customer_country:
+                    logger.warning(f"Missing customer depot country for depot {depot_id}")
+                if not supplier_country:
+                    logger.warning(f"Missing supplier depot country for supplier depot {supplier_depot_id}")
+                continue
+            
+            # Check if this allocation should be blocked
+            if customer_country in cross_border_restrictions:
+                restrictions = cross_border_restrictions[customer_country]
+                
+                # Check if supplier country is blocked
+                blocked_countries = restrictions.get('blocked_destinations', [])
+                allowed_countries = restrictions.get('allowed_destinations', [])
+                
+                should_block = False
+                if blocked_countries and supplier_country in blocked_countries:
+                    should_block = True
+                elif allowed_countries and supplier_country not in allowed_countries:
+                    should_block = True
+                
+                if should_block:
+                    # Add constraint to block this allocation
+                    constraint_name = f"country_block_{depot_id}_{supplier_depot_id}_{option_type}"
+                    self.model.add_constraint(
+                        allocation_var == 0,
+                        ctname=constraint_name
+                    )
+                    constraint_count += 1
+                    blocked_allocations += 1
+                    
+                    logger.debug(f"Blocked allocation: Customer depot {depot_id} ({customer_country}) → "
+                               f"Supplier depot {supplier_depot_id} ({supplier_country}) for {option_type}")
+        
+        logger.info(f"Added {constraint_count} country allocation constraints, "
+                   f"blocked {blocked_allocations} cross-border allocations")
+        return constraint_count
+    
     def add_constraints(self):
         """Add all constraints to the model."""
         logger.info("Adding constraints...")
@@ -785,7 +922,14 @@ class FuelDepotOptimizerDocplex:
                 logger.info(f"Added capacity constraint for supplier depot {supplier_depot_id} ({supplier_depot_name}): max {capacity_limit:,} litres from {len(depot_allocation_vars)} allocation variables")
         
         constraint_count += capacity_constraint_count
-        logger.info(f"Added {constraint_count} total constraints ({capacity_constraint_count} supplier depot capacity constraints)")
+        
+        # Constraint 5: Country allocation constraints (cross-border restrictions)
+        country_constraint_count = self._add_country_allocation_constraints()
+        constraint_count += country_constraint_count
+        
+        logger.info(f"Added {constraint_count} total constraints "
+                   f"({capacity_constraint_count} capacity constraints, "
+                   f"{country_constraint_count} country constraints)")
         return self
     
     def _get_contract_threshold(self, contract_config: Dict[str, Any]) -> float:
@@ -1205,7 +1349,7 @@ class FuelDepotOptimizerDocplex:
             # Execute pipeline
             self.prepare_data()
             self.create_decision_variables()
-            self.set_objective()
+            self.set_objective(objective_mode="cost_only")  # Default to cost-only optimization
             self.add_constraints()
             
             # Solve and return results

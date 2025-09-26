@@ -33,26 +33,27 @@ Where:
 
 #### COC Cash (Immediate Payment)
 ```
-coc_cash_cost_pv = (rtl_wholesale_per_litre - COC_reb_pl_cash) + transport_cost_per_litre
+coc_cash_cost_pv = (rtl_wholesale_per_litre - COC_reb_pl_cash) + transport_cost_per_litre + cost_owned_equip_pv
 ```
-- No PV discounting applied
+- No PV discounting applied to fuel cost
+- Includes customer-owned equipment cost (already in PV terms)
 - Available only where `COC_Valid_FK IS NOT NULL` and `COC_reb_pl_cash IS NOT NULL`
 
 #### COC NET30 (30-Day Payment)
 ```
-coc_30_cost_pv = ((rtl_wholesale_per_litre - COC_reb_pl_30) / pv_net30) + transport_cost_per_litre
+coc_30_cost_pv = ((rtl_wholesale_per_litre - COC_reb_pl_30) / pv_net30) + transport_cost_per_litre + cost_owned_equip_pv
 ```
 - Fuel cost discounted by NET30 PV factor
-- Transport cost not discounted (immediate cost)
+- Transport cost and equipment cost not discounted (immediate costs)
 
 #### COC NET45 (45-Day Payment)
 ```
-coc_45_cost_pv = ((rtl_wholesale_per_litre - COC_reb_pl_45) / pv_net45) + transport_cost_per_litre
+coc_45_cost_pv = ((rtl_wholesale_per_litre - COC_reb_pl_45) / pv_net45) + transport_cost_per_litre + cost_owned_equip_pv
 ```
 
 #### COC NET60 (60-Day Payment)
 ```
-coc_60_cost_pv = ((rtl_wholesale_per_litre - COC_reb_pl_60) / pv_net60) + transport_cost_per_litre
+coc_60_cost_pv = ((rtl_wholesale_per_litre - COC_reb_pl_60) / pv_net60) + transport_cost_per_litre + cost_owned_equip_pv
 ```
 
 ### DEL (Supplier Delivery) Options
@@ -87,9 +88,10 @@ RAC costs apply when volume commitments are not met. They use wholesale pricing 
 
 #### RAC COC NET30
 ```
-rac_coc_30_cost_pv = (rtl_wholesale_per_litre / pv_net30) + transport_cost_per_litre
+rac_coc_30_cost_pv = (rtl_wholesale_per_litre / pv_net30) + transport_cost_per_litre + cost_owned_equip_pv
 ```
 - No rebates applied (penalty pricing)
+- Includes customer-owned equipment cost
 - Only RAC option available - other payment terms not supported for RAC
 
 ### RAC DEL Options
@@ -131,12 +133,12 @@ Volume tier enhanced costs apply additional rebates when volume commitments are 
 
 **Additive to Base (`"additive_to_base"`)** - Used by Supplier C:
 ```
-coc_30_tier_X = ((rtl_wholesale_per_litre - (COC_reb_pl_30 + coc_tier_rebate)) / pv_net30) + transport_cost_per_litre 
+coc_30_tier_X = ((rtl_wholesale_per_litre - (COC_reb_pl_30 + coc_tier_rebate)) / pv_net30) + transport_cost_per_litre + cost_owned_equip_pv
 ```
 
 **Override Base (`"override_base"`)** - Used by Supplier I:
 ```
-coc_30_tier_X = ((rtl_wholesale_per_litre - coc_tier_rebate) / pv_net30) + transport_cost_per_litre 
+coc_30_tier_X = ((rtl_wholesale_per_litre - coc_tier_rebate) / pv_net30) + transport_cost_per_litre + cost_owned_equip_pv
 ```
 
 Where:
@@ -208,7 +210,7 @@ Tier options are named using the pattern:
 - **Equipment Rental Availability**: DEL Rent options are additionally filtered by `supplier_del_capabilities` configuration
   - Only suppliers with `"offers_equipment_rental": true` will have del_rent options generated
   - Suppliers with `"offers_equipment_rental": false` only offer DEL Own Equipment (customer-owned equipment)
-  - Default behavior: If supplier not listed in config, rental is assumed to be available (backward compatibility)
+  - Default behavior: If supplier not listed in config, rental is assumed to be unavailable (fail-safe)
 - **Defensive Filtering**: Cost dictionary building includes additional rental availability checks to ensure business rules are enforced
 - No delivery fees currently implemented in the code
 
@@ -241,6 +243,99 @@ Tier options are named using the pattern:
 - `supplier_contract_configurations`: Volume tier and RAC contract definitions
 - `supplier_del_capabilities`: Equipment rental availability per supplier (boolean `offers_equipment_rental` field)
 
+## Strategic Supplier Scoring Integration
+
+### Multi-Criteria Evaluation Formula
+Strategic supplier scores are calculated using a weighted multi-criteria evaluation system:
+
+```
+strategic_score_s = ∑_{c∈Criteria} (criterion_value_{s,c} × weight_c)
+```
+
+Where:
+- `s`: Supplier identifier (not individual depot)
+- `c`: Evaluation criteria (6 dimensions)  
+- `criterion_value_{s,c}`: Normalized score [0.0, 1.0] for supplier s on criterion c
+- `weight_c`: Weight for criterion c from database configuration
+
+**Important**: Strategic scores are calculated at the supplier level. All depots belonging to the same supplier share the same strategic score.
+
+### Strategic Scoring Criteria (6 Dimensions)
+
+#### 1. Current Level (1-8)
+- **Definition**: Supplier relationship maturity level on 8-point scale
+- **Range**: 1 (new/basic relationship) to 8 (strategic partnership)
+- **Business Impact**: Higher levels indicate stronger, more reliable partnerships
+
+#### 2. Product/Service Type
+- **Definition**: Alignment of supplier service offerings with operational requirements
+- **Assessment**: Compatibility of supplier capabilities with business needs
+- **Business Impact**: Better alignment reduces operational risk and improves service quality
+
+#### 3. Geographical Network
+- **Definition**: Distribution coverage and logistics capability across service territories
+- **Assessment**: Network reach, depot locations, and distribution infrastructure
+- **Business Impact**: Broader networks provide better coverage and backup options
+
+#### 4. Method of Sourcing
+- **Definition**: Supply chain approach and sourcing methodology employed by supplier
+- **Assessment**: Direct sourcing, integrated supply chains, procurement practices
+- **Business Impact**: More sophisticated sourcing methods often provide cost and reliability advantages
+
+#### 5. Investment in Refuelling Equipment
+- **Definition**: Infrastructure commitment and refuelling capability at supplier facilities
+- **Assessment**: Equipment quality, capacity, technological advancement, maintenance standards
+- **Business Impact**: Higher investment levels indicate commitment and operational capability
+
+#### 6. Reciprocal Business
+- **Definition**: Mutual business relationship strength and bi-directional value creation
+- **Assessment**: Joint initiatives, shared investments, collaborative partnerships
+- **Business Impact**: Stronger reciprocal relationships provide strategic advantages and risk mitigation
+
+### Strategic Score Properties
+- **Score Range**: [0.0, 1.0] normalized scores per supplier (shared by all supplier depots)
+- **Aggregation Method**: Linear weighted sum across all criteria
+- **Granularity**: Supplier-level scoring (not per individual depot)
+- **Data Source**: Multi-criteria weighted evaluation from database tables:
+  - `supplier_scores`: Individual criterion scores per supplier
+  - `criteria_weights`: Configurable weights per criterion
+- **Update Frequency**: Static during optimization run, configurable between runs
+
+### Integration in Multi-Objective Optimization
+
+#### Precomputation Integration
+Strategic scores are integrated during the cost calculation pipeline:
+
+```python
+# Integration point in precomputation.py
+def _add_strategic_scores_to_cost_dict(self, cost_dict: Dict):
+    from strategic_supplier_scoring import StrategicSupplierScoring
+    scoring = StrategicSupplierScoring(self.db_path)
+    
+    for depot_id in cost_dict:
+        for supplier_depot_id in cost_dict[depot_id]:
+            supplier_name = cost_dict[depot_id][supplier_depot_id].get('supplier_name')
+            if supplier_name:
+                # Same supplier-level score assigned to all depots of this supplier
+                strategic_score = scoring.calculate_supplier_strategic_score(supplier_name)
+                cost_dict[depot_id][supplier_depot_id]['strategic_score'] = strategic_score
+```
+
+**Granularity Consideration**: The current implementation assigns the same strategic score to all depots belonging to the same supplier. This may lose fidelity if depot-specific characteristics (e.g., terminal infrastructure quality, local management effectiveness, geographical advantages) vary significantly within a supplier's network. Future extensions could implement depot-level strategic scoring if such granular data becomes available.
+
+#### Multi-Objective Optimization Modes
+Strategic scores enable three distinct optimization approaches:
+
+1. **Cost-Only**: `minimize ∑ cost_terms` (traditional single-objective)
+2. **Strategic-Only**: `maximize ∑ strategic_score_terms`  
+3. **ε-Constraint**: `minimize cost subject to strategic_score ≥ ε` (preferred for trade-off analysis)
+
+#### Business Applications
+- **Trade-off Analysis**: Quantify cost impact of strategic supplier preferences
+- **Pareto Front Generation**: Identify efficient cost vs. strategic score solutions
+- **Policy Analysis**: Evaluate impact of strategic supplier requirements on total costs
+- **Risk Management**: Balance cost optimization with supplier relationship quality
+
 ### From Database
 - `rtl_wholesale`: Wholesale fuel prices (cents/litre for SA, R/litre for international)
 - `COC_reb_pl_*`: COC rebates for different payment terms
@@ -261,3 +356,4 @@ Tier options are named using the pattern:
 9. **Supplier-Specific Logic**: Different suppliers use different combination rules as configured
 10. **Defensive Filtering**: Multiple layers of rental availability checking (calculation, validation, dictionary building)
 11. **Currency**: All calculations in South African Rands, input prices converted from cents where needed
+12. **Multi-Objective Integration**: Strategic supplier scores integrated during precomputation for multi-objective optimization

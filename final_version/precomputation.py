@@ -86,12 +86,12 @@ class FuelOptimizationPrecomputation:
             
         Returns:
             bool: True if supplier offers rental, False otherwise.
-                  Defaults to True if not specified in config (backward compatibility)
+                  Defaults to False if not specified in config (fail-safe)
         """
         supplier_name = self.supplier_id_to_name.get(supplier_id, f"Supplier {supplier_id}")
         del_capabilities = self.config.get('supplier_del_capabilities', {})
-        supplier_config = del_capabilities.get(supplier_name, {"offers_equipment_rental": True})
-        return supplier_config.get('offers_equipment_rental', True)
+        supplier_config = del_capabilities.get(supplier_name, {"offers_equipment_rental": False})
+        return supplier_config.get('offers_equipment_rental', False)
     
     def _load_coordinates_from_database(self) -> Dict[str, Dict[int, Dict[str, Any]]]:
         """
@@ -177,11 +177,13 @@ class FuelOptimizationPrecomputation:
             cd.Annual_Volume_Litres as depot_annual_volume,
             cd.Cust_Depot_Name as customer_depot_name,
             cd.Fuel_Zone_ as customer_fuel_zone,
+            cd.Country as customer_depot_country,
             cd.Tankage_Size_Litres as tankage_size_litres,
             
             -- Supplier depot information  
             sd.Supply_Depot_Name,
             sd.Fuel_Zone_ as supplier_fuel_zone,
+            sd.Country as supplier_depot_country,
             sd.Supply_Depot_Location as Supply_Depot_Address,
             
             -- Supplier information (from suppliers table)
@@ -846,14 +848,17 @@ class FuelOptimizationPrecomputation:
             cost_dict[depot_id][supplier_depot_id]['supplier_name'] = row.get('supplier_name', f"Supplier {supplier_id}")
             cost_dict[depot_id][supplier_depot_id]['supplier_depot_name'] = row.get('Supply_Depot_Name', f"Depot {supplier_depot_id}")
             cost_dict[depot_id][supplier_depot_id]['distance_km'] = row.get('One_Way_Dist', None)
+            # Add supplier depot country from main query as fallback
+            cost_dict[depot_id][supplier_depot_id]['supplier_depot_country'] = row.get('supplier_depot_country')
             
-            # Add supplier depot coordinates if available
+            # Add supplier depot coordinates if available, override country if available
             if coordinates and 'supplier_depots' in coordinates:
                 coord_data = coordinates['supplier_depots'].get(supplier_depot_id, {})
                 if coord_data:
                     cost_dict[depot_id][supplier_depot_id]['supplier_depot_lat'] = coord_data.get('latitude')
                     cost_dict[depot_id][supplier_depot_id]['supplier_depot_lon'] = coord_data.get('longitude')
-                    cost_dict[depot_id][supplier_depot_id]['supplier_depot_country'] = coord_data.get('country')
+                    # Override country from coordinates if available, otherwise keep from main query
+                    cost_dict[depot_id][supplier_depot_id]['supplier_depot_country'] = coord_data.get('country') or cost_dict[depot_id][supplier_depot_id]['supplier_depot_country']
                     cost_dict[depot_id][supplier_depot_id]['supplier_depot_location'] = coord_data.get('location')
             
             # Build supporting dictionaries
@@ -861,7 +866,8 @@ class FuelOptimizationPrecomputation:
                 depot_info = {
                     'annual_volume': row['depot_annual_volume'],
                     'name': row['customer_depot_name'],
-                    'fuel_zone': row['customer_fuel_zone']
+                    'fuel_zone': row['customer_fuel_zone'],
+                    'country': row.get('customer_depot_country')  # Add country from main query
                 }
                 
                 # Add coordinates if available
@@ -870,7 +876,8 @@ class FuelOptimizationPrecomputation:
                     if coord_data:
                         depot_info['latitude'] = coord_data.get('latitude')
                         depot_info['longitude'] = coord_data.get('longitude')
-                        depot_info['country'] = coord_data.get('country')
+                        # Override country from coordinates if available, otherwise keep from main query
+                        depot_info['country'] = coord_data.get('country') or depot_info['country']
                         depot_info['town'] = coord_data.get('town')
                 
                 depot_dict[depot_id] = depot_info
@@ -1307,6 +1314,29 @@ class FuelOptimizationPrecomputation:
             
         return tier_costs
     
+    def _add_strategic_scores_to_cost_dict(self, cost_dict: Dict):
+        """Add strategic scores to cost dictionary during precomputation."""
+        logger.info("Adding strategic supplier scores to cost dictionary...")
+        
+        try:
+            from strategic_supplier_scoring import StrategicSupplierScoring
+            scoring = StrategicSupplierScoring(self.db_path)
+            
+            scores_added = 0
+            for depot_id in cost_dict:
+                for supplier_depot_id in cost_dict[depot_id]:
+                    supplier_name = cost_dict[depot_id][supplier_depot_id].get('supplier_name')
+                    if supplier_name:
+                        strategic_score = scoring.calculate_supplier_strategic_score(supplier_name)
+                        cost_dict[depot_id][supplier_depot_id]['strategic_score'] = strategic_score
+                        scores_added += 1
+            
+            logger.info(f"Added strategic scores for {scores_added} supplier depot combinations")
+            
+        except Exception as e:
+            logger.warning(f"Failed to add strategic scores: {e}")
+            # Continue without strategic scores - they're optional for optimization
+    
     def run_complete_precomputation(self) -> Dict[str, Any]:
         """
         Execute the complete precomputation pipeline including volume tiers and coordinates.
@@ -1318,6 +1348,9 @@ class FuelOptimizationPrecomputation:
         
         # Run base precomputation (now includes volume tier enhanced costs and coordinates)
         complete_cost_data = self.run_base_precomputation()
+        
+        # Add strategic scores to cost dictionary
+        self._add_strategic_scores_to_cost_dict(complete_cost_data['costs'])
         
         logger.info("Complete precomputation pipeline finished successfully!")
         return complete_cost_data

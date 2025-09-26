@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import plotly.express as px
 import os
+import time
+from datetime import datetime
 from collections import defaultdict
 
 class SelectiveNAFlexibleEConstraintOptimizer:
@@ -332,15 +334,19 @@ class SelectiveNAFlexibleEConstraintOptimizer:
         if epsilon_range is None:
             epsilon_range = self.detect_epsilon_range(constraint_type)
         
+        self.last_epsilon_range = (float(epsilon_range[0]), float(epsilon_range[1])) if epsilon_range else None
         epsilons = np.linspace(epsilon_range[0], epsilon_range[1], n_points)
         print(f"Testing {n_points} epsilon values from {epsilon_range[0]:.2e} to {epsilon_range[1]:.2e}")
-        
+
         results = []
         for i, eps in enumerate(epsilons):
             print(f"Solving epsilon {i+1}/{n_points}: {eps:.2e}")
+            epsilon_start = time.time()
             result = self.solve_single_epsilon(eps, constraint_type)
+            result["epsilon_index"] = i
+            result["solve_time_seconds"] = time.time() - epsilon_start
             results.append(result)
-        
+
         return pd.DataFrame(results)
     
     def detect_epsilon_range(self, constraint_type="cost"):
@@ -388,6 +394,8 @@ class SelectiveNAFlexibleEConstraintOptimizer:
 
 
         """Run complete e-constraint optimization with results export"""
+        start_time = time.time()
+        run_timestamp = datetime.utcnow().isoformat()
         print("="*60)
         print("SELECTIVE NA HANDLING E-CONSTRAINT OPTIMIZATION")
         print("="*60)
@@ -412,19 +420,53 @@ class SelectiveNAFlexibleEConstraintOptimizer:
         
         # Run optimization
         df_pareto = self.optimize_epsilon_constraint(epsilon_range, n_points, constraint_type)
-        
+
         # Filter out infeasible solutions
         df_feasible = df_pareto[df_pareto['status'] == 'Optimal'].copy()
-        
+
+        run_duration = time.time() - start_time
+        epsilon_range_used = getattr(self, "last_epsilon_range", None)
+        output_path = "Output Data/"
+        os.makedirs(output_path, exist_ok=True)
+
+        metadata = {
+            "run_timestamp": run_timestamp,
+            "constraint_type": constraint_type,
+            "n_points": n_points,
+            "epsilon_range_min": epsilon_range_used[0] if epsilon_range_used else None,
+            "epsilon_range_max": epsilon_range_used[1] if epsilon_range_used else None,
+            "max_suppliers": self.max_suppliers,
+            "total_points": int(len(df_pareto)),
+            "feasible_points": int(len(df_feasible)),
+            "feasible_ratio": float(len(df_feasible) / len(df_pareto)) if len(df_pareto) > 0 else 0.0,
+            "runtime_seconds": run_duration,
+            "solve_time_mean_seconds": None,
+            "solve_time_std_seconds": None,
+            "cost_min": float(df_feasible['cost'].min()) if len(df_feasible) > 0 else None,
+            "cost_max": float(df_feasible['cost'].max()) if len(df_feasible) > 0 else None,
+            "score_min": float(df_feasible['score'].min()) if len(df_feasible) > 0 else None,
+            "score_max": float(df_feasible['score'].max()) if len(df_feasible) > 0 else None,
+        }
+
+        if 'solve_time_seconds' in df_pareto.columns and len(df_pareto) > 0:
+            solve_times = df_pareto['solve_time_seconds'].dropna()
+            if not solve_times.empty:
+                metadata["solve_time_mean_seconds"] = float(solve_times.mean())
+                metadata["solve_time_std_seconds"] = float(solve_times.std(ddof=0))
+
+        metadata_path = os.path.join(output_path, "MOO_e_constraint_run_metadata.csv")
+        metadata_df = pd.DataFrame([metadata])
+        metadata_df.to_csv(metadata_path, mode='a', header=not os.path.exists(metadata_path), index=False)
+        self.last_run_metadata = metadata
+        self.last_run_results = df_pareto.copy()
+
+        # Save results
+        df_pareto.to_csv(f"{output_path}MOO_e-const_{constraint_type}_selective_na_pareto.csv", index=False)
+
         if len(df_feasible) == 0:
             print("No feasible solutions found!")
             return df_pareto
-        
-        # Save results
-        output_path = "Output Data/"
-        os.makedirs(output_path, exist_ok=True)
-        df_pareto.to_csv(f"{output_path}MOO_e-const_{constraint_type}_selective_na_pareto.csv", index=False)
-        
+
         # Print summary
         print(f"\nOptimization Results ({constraint_type} constraint with selective NA handling):")
         print(f"Total epsilon points tested: {len(df_pareto)}")

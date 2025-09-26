@@ -3,19 +3,27 @@
 
 **Constraints**
 - [ ] Max number of customer supplier contracts 
-- [ ] Implement, constraints that limit one supplier contract to one payment term(or some sort of constraint that is to do with payment term) --todo
-- [ ] Cross-boarder trade constraint or penalty --todo
-- [ ] Make sure config defines which customer depots have forced constraints for using their own equipment vs ones that want to buy equipment for del and coc (optional, force rent, force buy) 
+- [ ] Implement, constraints that limit one supplier contract to one payment term(or some sort of constraint that is to do with payment term)
+- [x] Cross-boarder trade constraints definied in config 
+- [ ] Make sure config defines which customer depots have forced constraints for using their own equipment for del and coc (optional, force rent, force buy) 
+
+
+**Cross Boarder Constraints Fix**
+- [ ] Cross-border economics are policy-only (no cost deltas)
+--> You correctly allow/block routes by country, but there’s no uplift for customs, FX, or border delays. If you’re comparing SA vs Mozambique sources, intl prices   are in config, but the frictional costs are not. Consider optional cost adders by country pair. optimization_config
+
 
 **Multi-Objective Optimization**
-- [ ] Add in qualitative supplier selection data into database --todo
-- [ ] Add in e-constaint method --todo
+- [x] Add in qualitative supplier selection data into database 
+- [x] Add in e-constaint method
 
 
 **Extras**
 - [x] Implement all unit vs incremental volume tiers 
+- [ ] Croscheck all business logic and potential bugs --todo
 - [ ] Check costs are calculated correctly for international depots
 - [ ] Look at implementing (static VS dynamic) and/or (deterministic Vs stochastic) [eg. variable demand volume, variable fuel price etc...][look at stochastic programming and robust optimization]
+- [ ] Transport in DEL: if base DEL rates truly include delivery, say so explicitly and remove the RAC-only transport charge to stay coherent. cost_formulas
 
 
 **Equipment**

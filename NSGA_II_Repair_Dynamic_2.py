@@ -5,6 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import plotly.express as px
 import os
+import time
+from datetime import datetime
 
 # CRITICAL: Set random seeds for reproducibility
 random.seed(42)
@@ -437,61 +439,128 @@ class FixedFlexibleSupplyChainOptimizer:
         
         return " ".join(solution_parts)
     
-    def optimize(self, ngen=50, mu=100, lambda_=200, cxpb=0.7, mutpb=0.2, indpb=0.2, seed_individuals=None):
-        """Run the optimization - EXACTLY like static version"""
-        print(f"Starting optimization with {ngen} generations...")
-        print(f"Population size: {mu}, Offspring: {lambda_}, Individual Mutation Rate: {indpb}")
-        
-        # Setup DEAP with the provided indpb
+    def optimize(
+        self,
+        ngen=50,
+        mu=100,
+        lambda_=200,
+        cxpb=0.7,
+        mutpb=0.2,
+        indpb=0.2,
+        seed_individuals=None,
+        seed=None,
+        run_id=None,
+        log_history=True,
+    ):
+        """Run the optimization with optional logging and reproducibility controls."""
+
+        if seed is not None:
+            random.seed(seed)
+            np.random.seed(seed)
+
         self.setup_deap(indpb=indpb)
 
+        run_identifier = run_id or f"nsga_run_{datetime.utcnow().strftime('%Y%m%dT%H%M%S')}_{random.randint(0, 999999)}"
+        print(f"Starting optimization {run_identifier} with {ngen} generations...")
+        print(f"Population size: {mu}, Offspring: {lambda_}, Individual Mutation Rate: {indpb}")
 
-        # Initialize population
-        if seed_individuals is not None:
+        start_time = time.time()
+        total_evaluations = 0
+        generation_records = []
+
+        # Initialize population with optional seed individuals
+        if seed_individuals:
             n_seeds = len(seed_individuals)
-            pop = self.toolbox.population(n=mu - n_seeds)
-            pop.extend(seed_individuals)
+            n_random = max(mu - n_seeds, 0)
+            pop = self.toolbox.population(n=n_random)
+            pop.extend(seed_individuals[:mu])
+            if len(pop) < mu:
+                pop.extend(self.toolbox.population(n=mu - len(pop)))
         else:
             pop = self.toolbox.population(n=mu)
 
+        def record_population(population, generation, evaluations):
+            costs = np.array([ind.fitness.values[0] for ind in population])
+            scores = np.array([ind.fitness.values[1] for ind in population])
+            return {
+                "run_id": run_identifier,
+                "generation": generation,
+                "min_cost": float(costs.min()) if len(costs) else None,
+                "mean_cost": float(costs.mean()) if len(costs) else None,
+                "max_cost": float(costs.max()) if len(costs) else None,
+                "min_score": float(scores.min()) if len(scores) else None,
+                "mean_score": float(scores.mean()) if len(scores) else None,
+                "max_score": float(scores.max()) if len(scores) else None,
+                "evaluations": evaluations,
+                "elapsed_seconds": time.time() - start_time,
+                "pareto_size": int(
+                    len(tools.sortNondominated(population, len(population), first_front_only=True)[0])
+                ),
+            }
 
-
-        # Initialize population
-       # pop = self.toolbox.population(n=mu)   
-       
-        
         # Evaluate initial population
-        invalid_ind = [ind for ind in pop if not ind.fitness.valid]
-        fitnesses = map(self.toolbox.evaluate, invalid_ind)
-        for ind, fit in zip(invalid_ind, fitnesses):
+        invalid_individuals = [ind for ind in pop if not ind.fitness.valid]
+        fitnesses = map(self.toolbox.evaluate, invalid_individuals)
+        for ind, fit in zip(invalid_individuals, fitnesses):
             ind.fitness.values = fit
-        
+        total_evaluations += len(invalid_individuals)
+
+        if log_history:
+            generation_records.append(record_population(pop, generation=0, evaluations=total_evaluations))
+
         # Evolution loop
         for gen in range(ngen):
             print(f"Generation {gen + 1}/{ngen}")
-            
-            # Generate offspring
-            offspring = algorithms.varAnd(pop, self.toolbox, cxpb=cxpb, mutpb=mutpb)
 
-            
-            # Repair offspring
+            # Generate and repair offspring
+            offspring = algorithms.varAnd(pop, self.toolbox, cxpb=cxpb, mutpb=mutpb)
             for ind in offspring:
                 self.repair_individual(ind)
-            
+
             # Evaluate offspring
-            invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-            fitnesses = map(self.toolbox.evaluate, invalid_ind)
-            for ind, fit in zip(invalid_ind, fitnesses):
+            invalid_individuals = [ind for ind in offspring if not ind.fitness.valid]
+            fitnesses = map(self.toolbox.evaluate, invalid_individuals)
+            for ind, fit in zip(invalid_individuals, fitnesses):
                 ind.fitness.values = fit
-            
+            total_evaluations += len(invalid_individuals)
+
             # Select next generation
             pop = self.toolbox.select(pop + offspring, k=mu)
-            
-            # Track progress
+
             pareto_solutions = tools.sortNondominated(pop, len(pop), first_front_only=True)[0]
             print(f"  Pareto optimal solutions: {len(pareto_solutions)}")
-        
-            print("Evolution completed!")
+
+            if log_history:
+                generation_records.append(
+                    record_population(pop, generation=gen + 1, evaluations=total_evaluations)
+                )
+
+        runtime = time.time() - start_time
+        final_pareto = tools.sortNondominated(pop, len(pop), first_front_only=True)[0]
+        print("Evolution completed!")
+
+        if log_history:
+            self.last_generation_log = pd.DataFrame(generation_records)
+        else:
+            self.last_generation_log = None
+
+        self.last_run_metadata = {
+            "run_id": run_identifier,
+            "timestamp": datetime.utcnow().isoformat(),
+            "ngen": ngen,
+            "mu": mu,
+            "lambda": lambda_,
+            "cxpb": cxpb,
+            "mutpb": mutpb,
+            "indpb": indpb,
+            "seed": seed,
+            "runtime_seconds": runtime,
+            "total_evaluations": total_evaluations,
+            "final_population": len(pop),
+            "final_pareto_size": len(final_pareto),
+        }
+        self.last_final_population = pop
+
         return pop
     
     def extract_pareto_front(self, population):
@@ -508,8 +577,8 @@ class FixedFlexibleSupplyChainOptimizer:
         
         return pd.DataFrame(results)
     
-    def run_full_optimization(self, **kwargs):
-        """Run complete optimization with results export"""
+    def run_full_optimization(self, run_id=None, log_history=True, seed=None, **kwargs):
+        """Run complete optimization with results export and metadata logging."""
         print("="*60)
         print("SELECTIVE NA HANDLING SUPPLY CHAIN OPTIMIZATION")
         print("="*60)
@@ -517,26 +586,61 @@ class FixedFlexibleSupplyChainOptimizer:
         print(f"Total depot-supplier pairs: {len(self.all_pairs)}")
         print(f"Encoding: {self.n_depots} genes (compound encoding: supplier + operation per depot)")
         print(f"Choices per depot range: {self.choices_range}")
-        
+
         # Show depot-specific information
         print("\nDepot-specific supplier availability:")
         for depot in self.depots:
             available_suppliers = sorted(self.suppliers_per_depot[depot])
             print(f"  Depot {depot}: Suppliers {available_suppliers} ({self.choices_per_depot[depot]} choices)")
-        
+
         print("="*60)
-        
+
+        run_identifier = run_id or f"nsga_full_{datetime.utcnow().strftime('%Y%m%dT%H%M%S')}_{random.randint(0, 999999)}"
+
         # Run optimization
-        final_population = self.optimize(**kwargs)
-        
+        final_population = self.optimize(
+            run_id=run_identifier,
+            log_history=log_history,
+            seed=seed,
+            **kwargs,
+        )
+
         # Extract results
         df_pareto = self.extract_pareto_front(final_population)
-        
+
         # Save results
         output_path = "Output Data/"
         os.makedirs(output_path, exist_ok=True)
         df_pareto.to_csv(f"{output_path}nsga-II_selective_na_handling.csv", index=False)
-        
+
+        # Persist metadata and generation history if available
+        metadata = getattr(self, "last_run_metadata", {})
+        metadata.update(
+            {
+                "run_id": run_identifier,
+                "pareto_size": int(len(df_pareto)),
+                "pareto_cost_min": float(df_pareto['cost'].min()) if not df_pareto.empty else None,
+                "pareto_cost_max": float(df_pareto['cost'].max()) if not df_pareto.empty else None,
+                "pareto_score_min": float(df_pareto['score'].min()) if not df_pareto.empty else None,
+                "pareto_score_max": float(df_pareto['score'].max()) if not df_pareto.empty else None,
+            }
+        )
+        self.last_run_metadata = metadata
+
+        metadata_path = os.path.join(output_path, "NSGAII_run_metadata.csv")
+        pd.DataFrame([metadata]).to_csv(
+            metadata_path, mode='a', header=not os.path.exists(metadata_path), index=False
+        )
+
+        if log_history and getattr(self, "last_generation_log", None) is not None:
+            generation_log_path = os.path.join(output_path, "NSGAII_generation_log.csv")
+            self.last_generation_log.to_csv(
+                generation_log_path,
+                mode='a',
+                header=not os.path.exists(generation_log_path),
+                index=False,
+            )
+
         # Print summary
         print("\nOptimization Results:")
         print(f"Pareto optimal solutions found: {len(df_pareto)}")

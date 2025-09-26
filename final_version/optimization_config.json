@@ -115,7 +115,7 @@
     }
   },
   "supplier_del_capabilities": {
-    "description": "Defines which suppliers offer equipment rental for DEL options. If supplier not listed, defaults to rental available for backward compatibility.",
+    "description": "Defines which suppliers offer equipment rental for DEL options. If supplier not listed, defaults to rental unavailable for fail-safe operation.",
     "Supplier A": {"offers_equipment_rental": false},
     "Supplier C": {"offers_equipment_rental": true},
     "Supplier D": {"offers_equipment_rental": true},
@@ -125,6 +125,32 @@
     "Supplier I": {"offers_equipment_rental": true},
     "Supplier J": {"offers_equipment_rental": false},
     "Supplier L": {"offers_equipment_rental": true}
+  },
+  "country_allocation_constraints": {
+    "description": "Controls cross-border allocation constraints. Customer depots can only be supplied by supplier depots in allowed countries.",
+    "enabled": true,
+    "cross_border_restrictions": {
+      "South Africa": {
+        "allowed_destinations": ["South Africa", "Mozambique", "Botswana", "Namibia", "Eswatini"],
+        "blocked_destinations": []
+      },
+      "Botswana": {
+        "allowed_destinations": ["Botswana", "South Africa"],
+        "blocked_destinations": ["Mozambique", "Namibia", "Eswatini"]
+      },
+      "Namibia": {
+        "allowed_destinations": ["Namibia", "South Africa"],
+        "blocked_destinations": ["Mozambique", "Botswana", "Eswatini"]
+      },
+      "Eswatini": {
+        "allowed_destinations": ["Eswatini", "South Africa"],
+        "blocked_destinations": ["Mozambique", "Botswana", "Namibia"]
+      },
+      "Mozambique": {
+        "allowed_destinations": ["Mozambique", "South Africa"],
+        "blocked_destinations": ["Botswana", "Namibia", "Eswatini"]
+      }
+    }
   },
   "supplier_depot_capacity_limits": {
     "description": "Maximum annual volume each supplier depot can supply (in litres). More realistic than supplier-level limits as it reflects terminal throughput constraints.",
