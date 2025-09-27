@@ -151,6 +151,71 @@ def normalise_points(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.nda
     return normalised, mins, maxs
 
 
+def compute_normalisation_bounds(
+    dataframes: Iterable[pd.DataFrame],
+    cost_col: str = "cost",
+    score_col: str = "score",
+) -> Dict[str, float]:
+    """Return shared min/max bounds for cost and score across multiple DataFrames."""
+
+    cost_values: List[float] = []
+    score_values: List[float] = []
+
+    for df in dataframes:
+        if df is None or df.empty:
+            continue
+        if cost_col in df.columns:
+            cost_values.extend(pd.to_numeric(df[cost_col], errors="coerce").dropna().tolist())
+        if score_col in df.columns:
+            score_values.extend(pd.to_numeric(df[score_col], errors="coerce").dropna().tolist())
+
+    if not cost_values or not score_values:
+        return {
+            "cost_min": float("nan"),
+            "cost_max": float("nan"),
+            "score_min": float("nan"),
+            "score_max": float("nan"),
+        }
+
+    return {
+        "cost_min": min(cost_values),
+        "cost_max": max(cost_values),
+        "score_min": min(score_values),
+        "score_max": max(score_values),
+    }
+
+
+def apply_normalisation(
+    df: pd.DataFrame,
+    bounds: Dict[str, float],
+    cost_col: str = "cost",
+    score_col: str = "score",
+    suffix: str = "_norm",
+) -> pd.DataFrame:
+    """Attach normalised cost/score columns using provided bounds."""
+
+    if df.empty:
+        return df
+
+    cost_min = bounds.get("cost_min")
+    cost_max = bounds.get("cost_max")
+    score_min = bounds.get("score_min")
+    score_max = bounds.get("score_max")
+
+    def _normalise(series: pd.Series, lower: float, upper: float) -> pd.Series:
+        span = (upper - lower) if upper is not None and lower is not None else None
+        if span is None or span == 0:
+            return pd.Series(np.zeros(len(series)), index=series.index)
+        return (series - lower) / span
+
+    df = df.copy()
+    if cost_col in df.columns and pd.notna(cost_min) and pd.notna(cost_max):
+        df[f"{cost_col}{suffix}"] = _normalise(pd.to_numeric(df[cost_col], errors="coerce"), cost_min, cost_max)
+    if score_col in df.columns and pd.notna(score_min) and pd.notna(score_max):
+        df[f"{score_col}{suffix}"] = _normalise(pd.to_numeric(df[score_col], errors="coerce"), score_min, score_max)
+    return df
+
+
 def hypervolume_2d(points: np.ndarray, reference: np.ndarray) -> float:
     """Compute 2D hypervolume for minimisation objectives."""
 

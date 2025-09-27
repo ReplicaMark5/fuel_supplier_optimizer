@@ -13,7 +13,9 @@ from MOO_e_constraint_Cost_Dynamic_2 import SelectiveNAFlexibleEConstraintOptimi
 from NSGA_II_Repair_Dynamic_2 import FixedFlexibleSupplyChainOptimizer
 from pareto_metrics import (
     aggregate_operational_metrics,
+    apply_normalisation,
     compare_fronts,
+    compute_normalisation_bounds,
     summarise_operational_metrics,
 )
 
@@ -109,6 +111,10 @@ def main():
         seed=args.seed,
     )
 
+    bounds = compute_normalisation_bounds([df_econst, df_nsga])
+    df_econst = apply_normalisation(df_econst, bounds)
+    df_nsga = apply_normalisation(df_nsga, bounds)
+
     print('Computing comparison metrics...')
     metrics = compare_fronts(df_econst, df_nsga, method_a='ε-Constraint', method_b='NSGA-II')
 
@@ -134,6 +140,7 @@ def main():
         'nsga_metadata': nsga_metadata,
         'econstraint_metadata': econst_metadata,
         'pareto_metrics': metrics,
+        'normalisation_bounds': bounds,
         'operational_metrics': op_summary,
     }
 

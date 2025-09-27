@@ -1,0 +1,638 @@
+
+\chapter{Advanced Supplier Allocation Model: Formulation and Implementation}
+\vspace{-2em}
+%\minitoc
+
+This chapter details the formulation and implementation of the advanced supplier allocation model, which represents the core contribution of this research. Unlike the preliminary models discussed in the previous chapter, this model incorporates a comprehensive set of real-world business rules, including complex cost structures, multi-regime volume tier contracts, and strategic multi-objective optimization.
+
+\section{Data Preparation and Processing}
+The implementation of the advanced optimization model requires comprehensive data preparation to transform raw industry data into a structured format suitable for mathematical optimization. This section documents the methodological approach taken to prepare, validate, and process the multi-dimensional fuel supply chain dataset.
+
+\subsection{Data Sources and Scope}
+The dataset encompasses the South African fuel supply network and neighboring countries, representing a complex regional supply chain with multiple suppliers, diverse contract structures, and varying operational constraints. The preparation process involved consolidating data from multiple sources including supplier contract documentation, geographic information systems, fuel pricing databases, and strategic supplier evaluations \note{make more accurate}.
+
+\subsection{Geographic Data Processing}
+\subsubsection{Depot Location Assignment}
+The depot allocation methodology implements a systematic geospatial approach to determine feasible supplier-customer depot pairings for Unitrans' fuel procurement optimization. This process establishes the foundational decision space for the multi-objective supplier allocation model by defining realistic service relationships based on operational distance constraints.
+
+\textbf{Procurement-Focused Algorithmic Approach}: The allocation system processes Unitrans' customer depot locations alongside potential supplier depot addresses to create a comprehensive supply relationship matrix. The core algorithm utilizes the Google Geocoding API to standardize all depot locations into precise coordinates, enabling accurate distance-based feasibility assessment for fuel procurement scenarios.
+
+\textbf{Operational Distance Constraints}: A 500-kilometer radius constraint determines feasible procurement relationships between Unitrans' customer depots and potential supplier depots. This threshold reflects practical transportation economics for fuel logistics, where distances beyond 500km typically result in prohibitive transportation costs that undermine procurement efficiency.
+
+\textbf{Regional Procurement Network}: The allocation algorithm accommodates Unitrans' cross-border operations, systematically identifying feasible supplier relationships across South Africa, Botswana, Namibia, Mozambique, and Eswatini. This regional scope enables comprehensive supplier allocation optimization across Unitrans' entire operational network.
+
+\textbf{Decision Variable Foundation}: The resulting feasible allocations directly inform the optimization model's decision variable structure, where each valid customer-supplier depot pair becomes a potential allocation option in the mathematical programming formulation. This ensures the optimization model operates within realistic operational constraints while maximizing supplier selection flexibility for Unitrans' procurement strategy.
+
+\subsubsection{Distance Calculation}
+The road distance calculation methodology provides precise transportation cost inputs for Unitrans' supplier allocation optimization by measuring actual driving distances between customer depots and potential supplier locations. This enables accurate cost modeling that reflects real-world transportation economics in the multi-objective procurement framework.
+
+\textbf{Regional Supplier Network Mapping}: The geocoding strategy addresses Unitrans' extensive operational footprint across the SADC region by systematically standardizing supplier depot addresses across South Africa, Botswana, Mozambique, Eswatini, and Namibia. This ensures comprehensive coverage of potential supplier locations for the procurement optimization model.
+
+\textbf{Cost Calculation Foundation}: The distance calculation utilizes Google's Distance Matrix API to compute actual driving distances that directly feed into the transportation cost component of the objective function. These precise distances enable accurate Customer Own Collection (COC) cost calculations, ensuring the optimization model reflects realistic fuel procurement economics for Unitrans' decision-making.
+
+\textbf{Procurement Decision Support}: The resulting distance matrix serves as foundational input for the cost precomputation pipeline, enabling rapid calculation of transportation costs across all feasible customer-supplier depot combinations. This supports Unitrans' supplier selection by quantifying the transportation cost component for each potential procurement relationship.
+
+\textbf{Data Quality Assurance}: The methodology implements robust validation to ensure accurate distance data for procurement cost calculations. Error handling addresses missing supplier references, failed geocoding attempts, and unreachable destinations, ensuring the optimization model operates with reliable transportation cost inputs for Unitrans' supplier allocation decisions.
+
+\subsubsection{Fuel Zone Allocation}
+The fuel zone data extraction methodology provides essential location-based pricing data for Unitrans' procurement cost calculations by converting regulatory PDF documents into structured datasets. This enables precise fuel cost modeling based on depot geographic locations within South Africa's official pricing zone framework.
+
+\textbf{Regulatory Data Processing}: The extraction process converts official Department of Mineral Resources and Energy (DMRE) fuel zone documentation into structured data for cost calculations. This ensures Unitrans' procurement model incorporates accurate, regulation-compliant fuel pricing based on official magisterial district zone classifications.
+
+\textbf{Zone-Based Cost Integration}: The structured fuel zone data enables location-specific cost calculations for Unitrans' depot network. Each customer and supplier depot is assigned to the appropriate fuel zone, ensuring procurement cost calculations reflect regional pricing variations as mandated by South African fuel regulation, directly supporting accurate supplier cost comparisons in the optimization model.
+
+\textbf{Procurement Cost Foundation}: The extracted fuel zone assignments directly feed into the cost precomputation pipeline, where zone-specific fuel prices are applied to calculate accurate procurement costs for each depot location. This ensures Unitrans' supplier allocation optimization incorporates realistic, location-based fuel pricing that reflects regulatory pricing structures across the operational network.
+
+\subsection{Contract Data Structuring}
+\subsubsection{Volume Tier Standardization}
+Volume tier contract structures were standardized across all suppliers for both COC and DEL rebate scenarios. This normalization enables consistent mathematical modeling while preserving supplier-specific pricing variations.
+
+\subsubsection{Edge Case Contract Term Simplification}
+Outlier contract options and variations were simplified through strategic assumptions:
+\begin{itemize}
+    \item \textbf{Temporal Limitation}: Supplier contract data beyond 3 years was removed for Supplier A, with long-term relationship value captured through strategic supplier scoring
+    \item \textbf{Variable Rate Elimination}: Variable rate contract data for Supplier G was excluded, with pricing flexibility reflected in strategic evaluation criteria
+\end{itemize}
+
+\subsection{Data Quality Assurance}
+\subsubsection{Duplicate Detection and Resolution}
+A systematic duplicate detection process was implemented using Excel formulations to identify and remove duplicate supply relationships while preserving unique rebate structures. The methodology addresses the critical challenge where multiple records might represent the same supplier-customer depot pairing but with different contract terms.
+
+\textbf{Composite Key Generation}: The duplicate detection process creates unique row keys by combining four critical columns:
+\begin{verbatim}
+=TRIM(A2)&"|"&TRIM(B2)&"|"&TEXT(C2,"0.000")&"|"&TRIM(D2)
+\end{verbatim}
+This formula concatenates Supplier\_FK, Customer\_Depot\_FK, One\_Way\_Distance, and Supplier\_Depot\_FK into a single identification string, trimming whitespace and standardizing numerical formatting to ensure accurate matching.
+
+\textbf{Duplicate Identification}: A secondary formula identifies duplicate occurrences:
+\begin{verbatim}
+=IF(COUNTIF($E$2:$E$304, E2)>1, "Duplicate", "Unique")
+\end{verbatim}
+This approach counts row key occurrences across the dataset, flagging records appearing multiple times as duplicates while preserving unique combinations.
+
+\textbf{Methodology Rationale}: This Excel-based approach was selected over Excel's standard Remove Duplicates feature because it allows preservation of records with identical core supply relationships but different rebate terms (in columns to the right). The method ensures that unique contract variations are maintained while eliminating true duplicates that would distort the optimization model's constraint matrix and decision variable structure.
+
+\subsubsection{Data Correction and Validation}
+Multiple data correction procedures were applied:
+\begin{itemize}
+    \item \textbf{Spelling Corrections}: Standardization of depot names (e.g., Rusternburg → Rustenburg)
+    \item \textbf{Numbering Consistency}: Correction of duplications of depot numbering sequences (depot 57 → depot 58)
+    \item \textbf{Naming Standardization}: Abbreviation expansion using systematic find-and-replace procedures
+    \item \textbf{Location Verification}: Supplier depot locations validated against business operational data
+\end{itemize}
+
+\subsubsection{Abbreviation Standardization}
+Systematic expansion of industry abbreviations to ensure data consistency:
+\begin{itemize}
+    \item E.L. Install → East London Install
+    \item Ct Terminal → Cape Town Terminal  
+    \item I.V.Bulk → Island View Bulk Durban
+    \item Matsapha Depot → Matsapha Depot Eswatini
+    \item Matola Terminal → Port of Matola, Mozambique
+\end{itemize}
+
+\subsection{Database Normalization}
+\subsubsection{Relational Structure Development}
+The processed data was organized into a normalized relational database structure with appropriate foreign key relationships, eliminating redundancy while maintaining referential integrity across supplier, customer, and pricing dimensions.
+
+\subsubsection{Key Generation}
+Systematic primary and foreign key generation was implemented for suppliers, customer depots, and supplier depots, enabling efficient join operations and constraint enforcement in the optimization model.
+
+\subsection{Modeling Assumptions}
+A number of key assumptions were documented to ensure transparency and reproducibility:
+\begin{itemize}
+    \item \textbf{Zone-Based Pricing}: Diesel pricing charged based on supplier depot location for both COC and DEL scenarios
+    \item \textbf{Capacity Constraints}: Individual supplier depot throughput limits.
+\end{itemize}
+
+\fixme{add in other modelling assumptions, esspecially config parameters used}
+
+This comprehensive data preparation methodology ensures the optimization model operates on validated, consistent, and industry-representative data while maintaining academic standards for reproducibility and transparency.
+
+\section{Database Schema and Architecture}
+
+
+
+The optimization system is supported by a comprehensive SQLite database (\texttt{fuel\_data.db}) that implements a normalized relational structure designed to support complex fuel supply chain optimization queries. The database serves as the foundational data layer for cost precomputation, constraint generation, and strategic scoring integration.
+
+\subsection{Database Overview}
+The database encompasses 2,580 records across 9 core tables, supporting optimization scenarios spanning 5 countries (South Africa, Botswana, Namibia, Mozambique, Eswatini), 9 major fuel suppliers, 60 customer depots, 75 supplier depots, and 2,042 possible supply relationships.
+
+\subsection{Entity Relationship Architecture}
+The database follows a normalized star schema optimized for supply chain optimization queries:
+
+\input{fig/entity-diagram.tex}
+
+\subsubsection{Core Infrastructure Tables}
+\textbf{Customer Depots (60 records):} Customer fuel depot locations and consumption profiles including geographic coordinates, fuel zones, tank capacity, pump infrastructure, annual volume consumption, and equipment valuations.
+
+\textbf{Supplier Depots (75 records):} Supplier fuel depot infrastructure and geographic coverage with location data, fuel zone assignments, supplier ownership relationships, and capacity management parameters.
+
+\textbf{Suppliers (9 records):} Master supplier registry containing business names and primary keys for 9 major fuel suppliers spanning the regional network.
+
+\subsubsection{Relationship and Service Tables}
+\textbf{Origin-Destination Pairs (2,042 records):} Central relationship matrix defining viable customer-supplier depot combinations with calculated distances, service option availability, and constraint filtering. NULL values indicate unavailable service combinations, reflecting real-world business relationship limitations.
+
+\textbf{Collection Options (68 records):} Customer Own Collection (COC) rebate pricing structures supporting multiple payment terms (cash, NET30, NET45, NET60) with present value implications for cash flow optimization.
+
+\textbf{Delivery Options (281 records):} Supplier delivery service configurations including equipment arrangements (transport charge, equipment finance charge, equipment maintenance charge) and supplier capability constraints.
+
+\subsubsection{Pricing Infrastructure}
+\textbf{Diesel Prices (54 records):} Wholesale fuel pricing by South African geographic zones supporting the current focus on "Diesel 0.005\% sulfur" with zone differentials, basic list pricing, and retail wholesale calculations forming the foundation for cost optimization.
+
+\subsubsection{Strategic Scoring Framework}
+\textbf{Supplier Scores (9 records):} Multi-criteria strategic evaluation system capturing six strategic dimensions: current relationship strength (1-8 scale), product/service compatibility, geographical network coverage, sourcing methodology alignment, equipment investment commitment, and reciprocal business value.
+
+\textbf{Criteria Weights (6 records):} Strategic scoring criteria importance weights enabling configurable multi-objective optimization with normalized weight constraints and systematic framework validation.
+
+\subsection{Strategic Evaluation Framework}
+The strategic scoring system implements a weighted multi-criteria approach with the following importance allocation:
+\begin{itemize}
+    \item \textbf{Reciprocal Business}: 25\% weight - Mutual business relationship value
+    \item \textbf{Current Level (1-8)}: 20\% weight - Existing relationship strength  
+    \item \textbf{Product/Service Type}: 15\% weight - Service offering compatibility
+    \item \textbf{Geographical Network}: 15\% weight - Geographic coverage alignment
+    \item \textbf{Method of Sourcing}: 15\% weight - Sourcing approach compatibility
+    \item \textbf{Investment in Equipment}: 10\% weight - Capital investment commitment
+\end{itemize}
+
+\subsection{Business Rule Implementation}
+The database architecture enforces critical business constraints through systematic design:
+
+\subsubsection{Service Availability Constraints}
+NULL foreign keys in the origin-destination pair table indicate unavailable service options, reflecting real-world supplier capability limitations, business relationship constraints, and operational feasibility boundaries.
+
+\subsubsection{Geographic Consistency}
+Fuel zone assignments maintain consistency between customer depots, supplier depots, and pricing tables, ensuring accurate wholesale pricing application across the regional network.
+
+\subsubsection{Payment Terms Integration}
+Multiple rebate structures reflect industry cash flow management preferences, with different payment terms (cash, NET30, NET45, NET60) enabling present value optimization and supplier relationship management.
+
+\subsection{Integration with Optimization Pipeline}
+The database supports the optimization workflow through systematic data extraction and processing:
+
+\subsubsection{Cost Coefficient Generation}
+Multi-table joins across all 9 tables generate comprehensive cost matrices incorporating wholesale pricing, rebate structures, transport costs, equipment arrangements, and strategic scores for ~26 423 decision variables.
+
+\subsubsection{Constraint Matrix Development}
+Business rules embedded in the database structure translate directly to mathematical optimization constraints including capacity limits, service availability restrictions, payment term requirements, and cross-border allocation policies.
+
+\subsubsection{Strategic Objective Integration}
+The strategic scoring framework enables multi-objective optimization with normalized supplier scores supporting \epsilon-constraint method implementation and Pareto front generation.
+
+\subsection{Performance and Scalability}
+The database design incorporates performance optimization measures:
+\begin{itemize}
+    \item \textbf{Query Optimization}: Indexed queries (\texttt{idx\_diesel\_prices\_product\_zone}) optimize fuel pricing lookups
+    \item \textbf{Normalized Structure}: Eliminates data redundancy while maintaining join performance
+    \item \textbf{Scalable Architecture}: Design supports extension to additional countries, suppliers, and strategic criteria
+    \item \textbf{Academic Reproducibility}: Well-documented schema enables research replication and validation
+\end{itemize}
+
+\subsection{Academic Significance}
+This database represents a production-scale implementation of academic database design principles applied to complex multi-objective supply chain optimization. The integration of quantitative cost optimization with qualitative strategic evaluation criteria demonstrates a novel approach to industry-academic collaboration, providing a foundation for reproducible research in regional fuel logistics optimization and strategic supplier selection methodologies.
+
+The comprehensive data foundation enables validation of optimization results against real-world industry constraints while supporting academic research in multi-criteria decision analysis, supply chain network design, and strategic supplier evaluation frameworks.
+
+
+
+\section{Configuration-Driven Business Logic}
+The \texttt{optimization\_config.json} file serves as the central configuration hub for the multi-objective depot supplier allocation optimizer. The decision to implement a lightweight JSON configuration system rather than a comprehensive user interface was driven by several key factors aligned with academic research objectives:
+
+\textbf{Academic Research Priorities}: The JSON configuration approach prioritizes model transparency and reproducibility over user experience convenience. Configuration files provide explicit documentation of all modeling assumptions, parameter values, and business rule implementations, enabling peer review and research validation that would be obscured within GUI abstractions.
+
+\textbf{Computational Resource Allocation}: Developing a comprehensive user interface would require significant development time and complexity that could detract from the core optimization research contributions. The JSON approach allows focus on mathematical formulation refinement, algorithmic performance optimization, and scenario analysis rather than interface design and usability testing.
+
+\textbf{Scenario Analysis Efficiency}: Configuration files enable rapid parameter sensitivity analysis and scenario comparison through simple file modifications and version control tracking. This supports the comparative evaluation framework essential for academic validation, where systematic parameter variations must be documented and reproduced.
+
+\textbf{Development Agility}: During the iterative development of the optimization model and cost precomputation pipeline, the JSON configuration system enabled rapid prototyping and refactoring cycles. Configuration parameters could be modified, extended, or restructured without requiring changes to user interface components, database schemas, or hardcoded business logic. This development flexibility proved essential when implementing complex contract structures like volume tier rewards and rebate adjustment clauses, where business rule requirements evolved through stakeholder feedback and model validation iterations.
+
+While a full decision support system user interface would enhance practical industry deployment, the JSON configuration approach optimizes for academic research objectives of transparency, reproducibility, and systematic evaluation. Future industrial implementations could build upon this configuration foundation with user-friendly interface layers while preserving the underlying transparency and flexibility essential for research validation. This file enables researchers and practitioners to model different business logic scenarios, contract structures, and operational constraints without modifying the underlying code. The configuration system supports complex real-world supply chain scenarios including volume tier rewards, rebate adjustment clauses, capacity constraints, and strategic supplier scoring.
+
+\subsection{Basic Parameters}
+Core operational parameters that define the fundamental economics of the fuel supply system.
+
+\begin{verbatim}
+"basic_parameters": {
+    "fuel_type": "Diesel 0.005% sulfur",
+    "wacc_percent": 12.5,
+    "tanker_cost_per_km": 15.5,
+    "tanker_capacity": 30000,
+    "cost_owned_equip_pv": 0.05,
+    "reorder_level": 0.30,
+    "min_drop_litres": 0,
+    "allow_multidrop": false,
+    "min_expected_fill_ratio": 1.0
+}
+\end{verbatim}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \textbf{\texttt{fuel\_type}}: Specification of fuel grade (used for database filtering)
+    \item \textbf{\texttt{wacc\_percent}}: Weighted Average Cost of Capital for present value calculations (percentage)
+    \item \textbf{\texttt{tanker\_cost\_per\_km}}: Transportation cost per kilometer for COC options (Rands)
+    \item \textbf{\texttt{tanker\_capacity}}: Maximum tanker capacity in litres (affects transport efficiency)
+    \item \textbf{\texttt{cost\_owned\_equip\_pv}}: Present value factor for owned equipment depreciation
+    \item \textbf{\texttt{reorder\_level}}: Inventory reorder threshold (0.30 = 30\% of tank capacity)
+    \item \textbf{\texttt{min\_drop\_litres}}: Minimum delivery volume per drop (0 = no minimum)
+    \item \textbf{\texttt{allow\_multidrop}}: Enable multiple customer deliveries per tanker trip
+    \item \textbf{\texttt{min\_expected\_fill\_ratio}}: Minimum tank fill ratio expected (1.0 = always fill to capacity)
+\end{itemize}
+
+\textbf{Business Impact:} These parameters directly affect cost calculations and operational feasibility. Adjusting \texttt{wacc\_percent} changes present value discounting, while \texttt{tanker\_cost\_per\_km} affects COC option competitiveness.
+
+\subsection{Present Value Settings}
+Defines payment terms for different cost components, crucial for accurate present value calculations in the South African fuel industry.
+
+\subsubsection{Base Rebate Terms}
+\begin{verbatim}
+"base_rebate_terms": {
+    "COC_cash": 0,
+    "COC_30": 30,
+    "COC_45": 45,
+    "COC_60": 60,
+    "DEL_30": 30
+}
+\end{verbatim}
+
+\textbf{Configuration Options:}
+\begin{itemize}
+    \item \textbf{\texttt{COC\_cash}}: Cash payment terms for COC options (0 days)
+    \item \textbf{\texttt{COC\_30/45/60}}: Net payment terms for different COC contracts
+    \item \textbf{\texttt{DEL\_30}}: Standard NET30 terms for delivery options
+\end{itemize}
+
+\subsection{International Fuel Prices}
+Cross-border pricing for regional operations (prices in Rands per litre).
+
+\begin{verbatim}
+"international_fuel_prices": {
+    "Botswana": 22,
+    "Namibia": 20.09,
+    "Mozambique": 22,
+    "Eswatini": 20.29
+}
+\end{verbatim}
+
+\textbf{Application:} Used when customer depots are located outside South Africa. Enables modeling of regional fuel supply networks.
+
+\subsection{Supplier Contract Configurations}
+The most complex section, enabling modeling of different contract types and business relationships.
+
+\subsubsection{Rebate Adjustment Clause (RAC)}
+\begin{verbatim}
+"supplier_A_RAC": {
+    "contract_type": "rebate_adjustment_clause",
+    "suppliers": ["Supplier A"],
+    "supplier_depots": ["*"],
+    "transport_modes": ["COC", "DEL"],
+    "commitment_threshold": 20000000,
+    "coc_rebate": null,
+    "del_rebate": null
+}
+\end{verbatim}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \textbf{\texttt{contract\_type}}: Must be \texttt{"rebate\_adjustment\_clause"}
+    \item \textbf{\texttt{suppliers}}: Array of supplier names affected
+    \item \textbf{\texttt{supplier\_depots}}: Specific depots or \texttt{["*"]} for all depots
+    \item \textbf{\texttt{transport\_modes}}: Which delivery modes are subject to RAC
+    \item \textbf{\texttt{commitment\_threshold}}: Minimum annual volume commitment (litres)
+    \item \textbf{\texttt{coc\_rebate/del\_rebate}}: Set to \texttt{null} (rebates removed if commitment not met)
+\end{itemize}
+
+\textbf{Business Logic:} If total allocated volume falls below threshold, all rebates are removed, reverting to wholesale pricing.
+
+\subsubsection{Volume Tier Rewards}
+\begin{verbatim}
+"supplier_C_tiers": {
+    "contract_type": "volume_tier_rewards",
+    "suppliers": ["Supplier C"],
+    "supplier_depots": ["*"],
+    "transport_modes": ["COC", "DEL"],
+    "volume_calculation_modes": ["COC", "DEL"],
+    "tiering_regime": "all_units",
+    "rebate_combination": "additive_to_base",
+    "reward_bands": [...]
+}
+\end{verbatim}
+
+\textbf{Key Parameters:}
+\begin{itemize}
+    \item \textbf{\texttt{volume\_calculation\_modes}}: Which transport modes count toward volume thresholds
+    \item \textbf{\texttt{tiering\_regime}}: 
+    \begin{itemize}
+        \item \texttt{"all\_units"}: All volume gets tier rebate once threshold reached
+        \item \texttt{"incremental"}: Only volume above threshold gets enhanced rebate
+    \end{itemize}
+    \item \textbf{\texttt{rebate\_combination}}: 
+    \begin{itemize}
+        \item \texttt{"additive\_to\_base"}: \texttt{final\_rebate = base\_rebate + tier\_rebate}
+        \item \texttt{"override\_base"}: \texttt{final\_rebate = tier\_rebate} (replaces base rebate)
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Reward Band Structure}
+\begin{verbatim}
+"reward_bands": [
+    {
+        "min_volume": 0,
+        "max_volume": 15000000,
+        "del_rebate": 0.00,
+        "coc_rebate": 0.00
+    },
+    {
+        "min_volume": 15000000,
+        "max_volume": 20000000,
+        "del_rebate": 0.50,
+        "coc_rebate": 0.59
+    }
+]
+\end{verbatim}
+
+\textbf{Band Configuration:}
+\begin{itemize}
+    \item \textbf{\texttt{min\_volume/max\_volume}}: Volume thresholds (litres per annum)
+    \item \textbf{\texttt{max\_volume}}: Use \texttt{null} for unlimited upper band
+    \item \textbf{\texttt{del\_rebate/coc\_rebate}}: Additional rebate in Rands per litre
+    \item \textbf{\texttt{null} values}: Indicate unavailable options for that transport mode
+\end{itemize}
+
+\subsection{Supplier Delivery Capabilities}
+Controls equipment rental availability for delivery options.
+
+\begin{verbatim}
+"supplier_del_capabilities": {
+    "Supplier A": {"offers_equipment_rental": false},
+    "Supplier C": {"offers_equipment_rental": true}
+}
+\end{verbatim}
+
+\textbf{Impact:} Suppliers with \texttt{"offers\_equipment\_rental": false} cannot provide DEL options with rental equipment, limiting customer flexibility but reducing supplier capital requirements.
+
+\subsection{Country Allocation Constraints}
+Defines cross-border supply restrictions for compliance and operational reasons.
+
+\begin{verbatim}
+"country_allocation_constraints": {
+    "enabled": true,
+    "cross_border_restrictions": {
+        "South Africa": {
+            "allowed_destinations": ["South Africa", "Mozambique", "Botswana"],
+            "blocked_destinations": []
+        }
+    }
+}
+\end{verbatim}
+
+\textbf{Configuration Options:}
+\begin{itemize}
+    \item \textbf{\texttt{enabled}}: Toggle constraint enforcement on/off
+    \item \textbf{\texttt{allowed\_destinations}}: Countries that can be supplied from this origin
+    \item \textbf{\texttt{blocked\_destinations}}: Explicit prohibition list (takes precedence)
+\end{itemize}
+
+\textbf{Business Logic:} Models regulatory restrictions, tax implications, and operational constraints in cross-border fuel supply.
+
+\subsection{Mathematical Integration}
+Configuration parameters directly influence the optimization formulation through precomputed cost calculations and strategic scoring integration, enabling rapid scenario analysis and adaptation to new contractual terms without altering the core optimization code.
+
+\section{Cost Precomputation Pipeline}
+A critical component of the advanced model is the precomputation of all possible cost options. This approach enhances solver performance by providing a simple lookup for the objective function, rather than calculating costs dynamically. The formulas, implemented in a dedicated precomputation module, are detailed below. All costs are calculated in South African Rands (R) per litre and include Present Value (PV) discounting.
+
+\subsection{Basic Parameters and Present Value}
+The model incorporates the time value of money by discounting future payments to their present value using the Weighted Average Cost of Capital (WACC).
+
+\begin{itemize}
+    \item \textbf{WACC}: Weighted Average Cost of Capital (from config: \texttt{wacc\_percent})
+    \item \textbf{Annual Rate}: \texttt{wacc\_decimal = wacc\_percent / 100}
+    \item \textbf{PV Factors}:
+    \begin{itemize}
+        \item \texttt{pv\_cash = 1.0} (no discounting)
+        \item \texttt{pv\_net30 = (1 + wacc\_decimal/365)\^{}30}
+        \item \texttt{pv\_net45 = (1 + wacc\_decimal/365)\^{}45}
+        \item \texttt{pv\_net60 = (1 + wacc\_decimal/365)\^{}60}
+    \end{itemize}
+\end{itemize}
+
+\subsection{Base Cost Calculations}
+Base costs are calculated for both Customer Own Collection (COC) and Supplier Delivery (DEL) options.
+
+\subsubsection{COC (Customer Own Collection) Options}
+COC costs include the wholesale fuel price (less rebates), plus a calculated transport cost.
+\begin{equation}
+\texttt{transport\_cost\_per\_litre} = \frac{\texttt{distance\_km} \times 2 \times \texttt{tanker\_cost\_per\_km}}{\texttt{tanker\_capacity} \times \rho}
+\end{equation}
+where $\rho$ is the minimum expected fill ratio parameter (\texttt{min\_expected\_fill\_ratio}) with $\rho \in (0,1]$.
+
+\textbf{Transport Cost Assumptions}: The current implementation assumes full-load operations with $\rho = 1.0$ and prohibits multi-drop deliveries (\texttt{allow\_multidrop} = false). This represents a conservative costing approach where each depot collection requires a dedicated full round-trip, ensuring transport costs reflect worst-case operational scenarios rather than optimistic load consolidation.
+
+The PV-adjusted costs for COC options are:
+\begin{align}
+    \texttt{coc\_cash\_cost\_pv} &= (\texttt{rtl\_wholesale} - \texttt{COC\_reb\_cash}) + \texttt{transport\_cost} + \texttt{cost\_owned\_equip\_pv} \\
+    \texttt{coc\_30\_cost\_pv} &= \frac{\texttt{rtl\_wholesale} - \texttt{COC\_reb\_30}}{\texttt{pv\_net30}} + \texttt{transport\_cost} + \texttt{cost\_owned\_equip\_pv} \\
+    \texttt{coc\_45\_cost\_pv} &= \frac{\texttt{rtl\_wholesale} - \texttt{COC\_reb\_45}}{\texttt{pv\_net45}} + \texttt{transport\_cost} + \texttt{cost\_owned\_equip\_pv} \\
+    \texttt{coc\_60\_cost\_pv} &= \frac{\texttt{rtl\_wholesale} - \texttt{COC\_reb\_60}}{\texttt{pv\_net60}} + \texttt{transport\_cost} + \texttt{cost\_owned\_equip\_pv}
+\end{align}
+
+\subsubsection{DEL (Supplier Delivery) Options}
+DEL options are standardized on NET30 payment terms and are split into two scenarios based on equipment ownership.
+\begin{align}
+    \texttt{del\_own\_cost\_pv} &= \frac{\texttt{rtl\_wholesale} - (\texttt{DEL\_reb\_30} + \texttt{equip\_fin\_30} + \texttt{equip\_main\_30})}{\texttt{pv\_net30}} \nonumber \\
+    &\quad + \texttt{cost\_owned\_equip\_pv} \\
+    \texttt{del\_rent\_cost\_pv} &= \frac{\texttt{rtl\_wholesale} - \texttt{DEL\_reb\_30}}{\texttt{pv\_net30}}
+\end{align}
+
+\textbf{Equipment Taxonomy}: The model implements two DEL scenarios covering the essential equipment ownership cases: customer-owned equipment (\texttt{del\_own}) and supplier-rental equipment (\texttt{del\_rent}). A potential \texttt{del\_buy} option (customer purchases equipment) was deemed redundant with \texttt{del\_own} since both represent customer ownership scenarios with similar cost structures and operational implications.
+
+\textbf{Note on Delivery Charges}: The base DEL options assume fully delivered pricing where delivery costs are incorporated into the rebate structure rather than charged separately. This represents a "delivered tariff" approach where the supplier absorbs delivery costs as part of their competitive positioning.
+
+\subsection{Contract-Specific Cost Adjustments}
+The model dynamically generates additional cost options based on two types of supplier contracts: Rebate Adjustment Clauses (RAC) and Volume Tier Rewards.
+
+\subsubsection{RAC (Rebate Adjustment Clause) Penalty Costs}
+RAC costs represent a penalty for failing to meet a volume commitment with a supplier. These options use the full wholesale price without any rebates.
+\begin{align}
+    \texttt{rac\_coc\_30\_cost\_pv} &= \frac{\texttt{rtl\_wholesale}}{\texttt{pv\_net30}} + \texttt{transport\_cost} + \texttt{cost\_owned\_equip\_pv} \\
+    \texttt{rac\_del\_own\_cost\_pv} &= \frac{\texttt{rtl\_wholesale} + \texttt{transport\_charge}}{\texttt{pv\_net30}} + \texttt{cost\_owned\_equip\_pv} \\
+    \texttt{rac\_del\_rent\_cost\_pv} &= \frac{\texttt{rtl\_wholesale} + \texttt{transport\_charge} + \texttt{equip\_fin\_30} + \texttt{equip\_main\_30}}{\texttt{pv\_net30}}
+\end{align}
+
+\textbf{Delivery Charge Treatment in RAC}: Unlike base DEL options where delivery costs are absorbed within the rebate structure, RAC penalties explicitly add transport charges (\texttt{transport\_charge}) to reflect the full cost burden when volume commitments are not met. This represents a reversion from the delivered tariff to explicit cost-plus pricing as a contractual penalty mechanism.
+
+\textbf{Equipment Cost Treatment in RAC DEL Rent}: The RAC rental formula includes equipment financing and maintenance charges (\texttt{equip\_fin\_30} + \texttt{equip\_main\_30}), which represents a penalty mechanism where failed volume commitments result in the customer bearing equipment-related costs that would normally be absorbed by the supplier in standard rental arrangements. This reflects a contractual escalation from standard rental terms to cost-plus pricing as a penalty for commitment non-compliance.
+
+\subsubsection{Volume Tier Enhanced Costs}
+These options provide additional rebates for meeting certain volume thresholds. The model supports two combination rules for applying these rebates:
+\begin{itemize}
+    \item \textbf{additive\_to\_base}: The volume tier rebate is added to the base rebate.
+    \item \textbf{override\_base}: The volume tier rebate replaces the base rebate entirely.
+\end{itemize}
+For example, the cost for a NET30 COC option with an additive volume tier rebate is:
+\begin{align}
+\texttt{coc\_30\_tier\_X} &= \frac{\texttt{rtl\_wholesale} - (\texttt{COC\_reb\_30} + \texttt{coc\_tier\_rebate})}{\texttt{pv\_net30}} \nonumber \\
+&\quad + \texttt{transport\_cost} + \texttt{cost\_owned\_equip\_pv}
+\end{align}
+
+For DEL options, the tier enhancement formulas demonstrate how equipment terms behave under different combination rules:
+
+\textbf{DEL Own Equipment with Additive Tier} (preserves base rebates plus equipment benefits):
+\begin{align}
+\texttt{del\_own\_tier\_X} &= \frac{\texttt{rtl\_wholesale} - (\texttt{DEL\_reb\_30} + \texttt{del\_tier\_rebate} + \texttt{equip\_fin\_30} + \texttt{equip\_main\_30})}{\texttt{pv\_net30}} \nonumber \\
+&\quad + \texttt{cost\_owned\_equip\_pv}
+\end{align}
+
+\textbf{DEL Own Equipment with Override Tier} (equipment terms preserved, base delivery rebate overridden):
+\begin{align}
+\texttt{del\_own\_tier\_Y} &= \frac{\texttt{rtl\_wholesale} - (\texttt{del\_tier\_rebate} + \texttt{equip\_fin\_30} + \texttt{equip\_main\_30})}{\texttt{pv\_net30}} \nonumber \\
+&\quad + \texttt{cost\_owned\_equip\_pv}
+\end{align}
+
+\section{Mathematical Optimization Formulation}
+The core of the actionable model is a binary integer program that minimizes total procurement costs while adhering to a complex set of operational and contractual constraints.
+
+\subsection{Decision Variables}
+\begin{itemize}
+    \item $x_{i,j,o} \in \{0,1\}$: Primary binary variable, equal to 1 if customer depot $i$ is served by supplier depot $j$ using cost option $o$.
+    \item $z_{c,b} \in \{0,1\}$: Binary activation variable for tier band $b$ of contract $c$.
+    \item $y_{c,b} \in \{0,1\}$: Binary eligibility variable for tier band $b$ of contract $c$ (used only in the 'all-units' tiering regime).
+    \item $y_{c} \in \{0,1\}$: Binary activation variable for RAC contract $c$.
+    \item $s_{i,j,o,b} \ge 0$: Continuous variable representing the volume from allocation $(i,j,o)$ that flows into tier band $b$ (used only in the 'incremental' tiering regime).
+\end{itemize}
+
+\subsection{Parameters}
+\subsubsection{Sets and Indices}
+\begin{itemize}
+    \item $I$: Set of customer depots, indexed by $i$
+    \item $J$: Set of supplier depots, indexed by $j$ 
+    \item $O$: Set of cost options (base, RAC, tier-enhanced), indexed by $o$
+    \item $C$: Set of contracts, indexed by $c$
+    \item $B_c$: Set of tier bands for contract $c$, indexed by $b$
+    \item $C_{\text{RAC}} \subseteq C$: Set of rebate adjustment clause contracts
+    \item $C_{\text{all-units}} \subseteq C$: Set of contracts with all-units tiering regime
+    \item $C_{\text{incremental}} \subseteq C$: Set of contracts with incremental tiering regime
+\end{itemize}
+
+\subsubsection{Depot and Volume Data}
+\begin{itemize}
+    \item $V_i$: Annual fuel demand for customer depot $i$ (litres)
+    \item $L_j$: Physical capacity limit for supplier depot $j$ (litres)
+    \item $C_{i,j,o}$: Precomputed cost per litre for option $o$ at depot-supplier pairing $(i,j)$
+\end{itemize}
+
+\subsubsection{Contract Parameters}
+\begin{itemize}
+    \item $T_c$: Volume threshold for RAC contract $c$ activation (litres)
+    \item $T_{c,b}$: Minimum volume threshold for tier band $b$ in contract $c$ (litres)
+    \item $W_b$: Width of tier band $b$ (maximum volume capacity, litres or $+\infty$ if unbounded)
+\end{itemize}
+
+\subsection{Objective Function}
+The primary objective is to minimize the total annual fuel procurement cost. The formulation supports multi-objective optimization, as detailed in Section 4.3.
+
+\begin{equation}
+\text{minimize} \sum_{i\in I} \sum_{j\in J} \sum_{o\in O_{\text{base}}} V_i \times C_{i,j,o} \times x_{i,j,o} + \sum_{c\in C_{\text{incremental}}} \sum_{b\in B_c} \sum_{i,j,o} C_{i,j,o}^b \times s_{i,j,o,b}
+\end{equation}
+
+\textbf{Cost Structure}: The objective uses precomputed per-option costs (base, RAC, tier-enhanced) applied via binary allocation variables $x_{i,j,o}$ for all-units and RAC regimes, while incremental contracts apply costs per band via continuous volume flow variables $s_{i,j,o,b}$. This dual structure ensures accurate cost attribution across different tiering regimes.
+
+\subsection{Key Constraints}
+\subsubsection{Depot Assignment}
+Each customer depot must be allocated to exactly one supplier and one cost option.
+\begin{equation}
+\sum_{j\in J} \sum_{o\in O} x_{i,j,o} = 1 \quad \forall i \in I
+\end{equation}
+
+\subsubsection{Volume Tier Contracts}
+The model implements two distinct regimes for volume tier contracts, enforced by a set of linking constraints.
+\begin{itemize}
+    \item \textbf{All-Units Regime}: If a volume tier is activated, the corresponding base-price options for that supplier are forbidden. This is a classic "all-units discount" structure.
+    
+    The eligibility and selection constraints for volume tiers are:
+    \begin{align}
+    V_c^{\text{total}} &\ge T_{c,b} \cdot y_{c,b} \quad \forall c \in C, b \in B_c \label{eq:tier-eligibility} \\
+    z_{c,b} &\le y_{c,b} \quad \forall c \in C, b \in B_c \label{eq:tier-selection} \\
+    \sum_{b \in B_c} z_{c,b} &\le 1 \quad \forall c \in C \label{eq:tier-at-most-one}
+    \end{align}
+    
+    Where $y_{c,b}$ indicates tier band $b$ eligibility for contract $c$, $z_{c,b}$ indicates tier band selection, and $T_{c,b}$ represents the volume threshold for tier band $b$. The "any tier active" variable is defined as:
+    \begin{equation}
+    y_{\text{any}} = \bigvee_{c \in C, b \in B_c} z_{c,b} \label{eq:any-tier-active}
+    \end{equation}
+    
+    Base option exclusion is then enforced by:
+    \begin{equation}
+    x_{i,j,o}^{\text{base}} \le 1 - y_{\text{any}} \quad \forall \text{base options } o \text{ in contract } c \label{eq:base-exclusion}
+    \end{equation}
+    \item \textbf{Incremental Regime}: The volume for each depot is split across the tier bands using the continuous variables $s_{i,j,o,b}$. This ensures rebates are only applied to the volume within a specific band.
+    
+    The flow conservation constraint ensures all volume is allocated to bands:
+    \begin{equation}
+    \sum_{b\in B_c} s_{i,j,o,b} = V_i \quad \forall \text{allocations } (i,j,o) \text{ where } x_{i,j,o} = 1 \label{eq:flow-conservation}
+    \end{equation}
+    
+    Band width constraints limit the volume in each tier band to its maximum capacity:
+    \begin{equation}
+    \sum_{i,j,o} s_{i,j,o,b} \le W_b \cdot z_{c,b} \quad \forall c \in C, b \in B_c \label{eq:band-width}
+    \end{equation}
+    
+    Progressive eligibility ensures tier bands can only be activated when cumulative volume meets the threshold:
+    \begin{equation}
+    \sum_{k \le b} \sum_{i,j,o} s_{i,j,o,k} \ge T_{c,b} \cdot z_{c,b} \quad \forall c \in C, b \in B_c \label{eq:cumulative-threshold}
+    \end{equation}
+    
+    Monotonic activation ensures lower tier bands are activated before higher ones:
+    \begin{equation}
+    z_{c,b+1} \le z_{c,b} \quad \forall c \in C, b \in B_c \setminus \{|B_c|\} \label{eq:monotonic-activation}
+    \end{equation}
+    
+    Under the incremental regime, tier-enhanced cost options are disabled to prevent double-counting of tier benefits:
+    \begin{equation}
+    x_{i,j,o} = 0 \quad \forall \text{tier-enhanced options } o \text{ in incremental contracts } c \label{eq:disable-tier-enhanced}
+    \end{equation}
+\end{itemize}
+
+\subsubsection{Rebate Adjustment Clause (RAC)}
+RAC constraints enforce a mutual exclusion. If the volume commitment is met ($y_c=1$), only base options are allowed. If the commitment is not met ($y_c=0$), only RAC penalty options are allowed.
+
+The commitment link ties the RAC activation variable to the achieved volume:
+\begin{equation}
+\sum_{i,j,o} V_i \times x_{i,j,o}^{\text{base}} \ge T_c \times y_c \quad \forall c \in C_{\text{RAC}} \label{eq:rac-commitment}
+\end{equation}
+
+The gating constraints enforce mutual exclusion between base and RAC options:
+\begin{align}
+    x_{i,j,o}^{\text{base}} &\le y_c \quad \forall \text{base options } o \text{ in contract } c \label{eq:rac-base-gate} \\
+    x_{i,j,o}^{\text{rac}} &\le 1 - y_c \quad \forall \text{RAC options } o \text{ in contract } c \label{eq:rac-penalty-gate}
+\end{align}
+
+\subsubsection{Supplier Depot Capacity}
+The total volume allocated to any single supplier depot cannot exceed its physical capacity.
+\begin{equation}
+\sum_{i\in I_j} \sum_{o\in O_j} V_i \times x_{i,j,o} \le L_j \quad \forall j \in J
+\end{equation}
+
+\subsubsection{Country Allocation Constraints}
+The model includes constraints to manage cross-border supply chains, allowing or blocking allocations based on the countries of the customer and supplier depots, as defined in the configuration.
+\begin{equation}
+x_{i,j,o} = 0 \quad \forall (i,j,o) \text{ where } (\text{country}_i, \text{country}_j) \text{ is a blocked pair}
+\end{equation}
+
+\section{Multi-Objective Optimization with Strategic Scores}
+To balance cost with non-financial factors, the model incorporates a strategic supplier score as a second objective, enabling a comprehensive trade-off analysis.
+
+\subsection{Strategic Supplier Scoring}
+A weighted multi-criteria evaluation system calculates a strategic score for each supplier based on six criteria: Current Relationship Level, Product/Service Type, Geographical Network, Method of Sourcing, Investment in Equipment, and Reciprocal Business.
+\begin{equation}
+\text{strategic\_score}_s = \sum_{c\in\text{Criteria}} (\text{criterion\_value}_{s,c} \times \text{weight}_c)
+\end{equation}
+This score is calculated at the supplier level and applied to all depots belonging to that supplier.
+
+\subsection[Epsilon-Constraint Method]{Epsilon-Constraint ($\epsilon$-Constraint) Method}
+The multi-objective problem is solved using the $\epsilon$-constraint method. The primary objective remains cost minimization, while the total strategic score is constrained to be above a certain threshold, $\epsilon$.
+\begin{equation}
+\text{minimize} \sum \text{Cost} \quad \text{subject to} \quad \sum_{i,j,o} S_{s(j)} \times x_{i,j,o} \ge \epsilon
+\end{equation}
+By systematically varying the value of $\epsilon$ from a minimum to a maximum achievable score, a Pareto-optimal front is generated, illustrating the trade-off between total cost and total strategic score.
+
