@@ -5,6 +5,12 @@
 - **Problem Type**: Binary integer programming optimization with volume tier constraints
 - **Data Source**: Excel file with supplier, depot, and pricing information
 
+## Recent Updates (2025-09-29)
+- Harmonized optimizer verification expectations with the single-allocation-per-depot constraint; capacity tests now validate supplier assignments and exact usage volumes rather than assuming split deliveries.
+- Reworked incremental volume tier modelling to keep base-band volume variables, cap incremental bands to excess demand, and compute blended costs directly from band volumes, restoring correct rebate application in the DOcplex model.
+- Enhanced result extraction to surface per-band allocations and average incremental pricing, allowing regression tests to confirm cost objectives and band splits align.
+- Expanded the automated verification suite to assert option types, capture incremental band volumes, and regenerate a full pass across all nine scenarios (9/9).
+
 ## Methodology Steps
 
 ### 1. Data Collection and Preparation

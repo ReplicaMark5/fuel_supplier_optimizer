@@ -282,16 +282,14 @@ class FuelDepotOptimizerDocplex:
                 for tier_band in tier_bands:
                     tier_name = tier_band['tier_name']
                     min_vol = tier_band['min_volume']
+                    is_incremental_base_band = regime == 'incremental' and min_vol == 0
                     
-                    # Skip creating binary variables for base bands (min_vol=0) in incremental contracts
-                    # But keep the band for flow conservation and costing
-                    if regime == 'incremental' and min_vol == 0:
-                        continue  # No binary variable for base band in incremental
-                    
-                    var_name = f"tier_{contract_name}_{tier_name}"
-                    var = self.model.binary_var(name=var_name)
-                    self.tier_band_vars[(contract_name, tier_name)] = var
-                    tier_band_count += 1
+                    # For incremental contracts, base band does not need a binary selector
+                    if not is_incremental_base_band:
+                        var_name = f"tier_{contract_name}_{tier_name}"
+                        var = self.model.binary_var(name=var_name)
+                        self.tier_band_vars[(contract_name, tier_name)] = var
+                        tier_band_count += 1
                     
                     # Create regime-specific additional variables
                     if regime == 'all_units':
@@ -657,7 +655,7 @@ class FuelDepotOptimizerDocplex:
             
             if this_band_vars:
                 total_band_volume = self.model.sum(this_band_vars)
-                
+
                 # For base bands (min_vol=0): no binary constraint, just width limit
                 if min_volume == 0:
                     # Base band constraint: q_base <= band_width (no binary gate)
@@ -673,7 +671,30 @@ class FuelDepotOptimizerDocplex:
                         ctname=f"band_width_limit_{contract_name}_{tier_name}"
                     )
                 constraint_count += 1
-                
+
+                # Limit incremental band volume to available excess volume per allocation option
+                if min_volume > 0:
+                    for (option_key, t_name), band_var in self.band_volume_vars.items():
+                        if t_name != tier_name:
+                            continue
+
+                        depot_id, supplier_depot_id, option_type = option_key
+                        if option_key not in self.allocation_vars:
+                            continue
+
+                        allocation_var = self.allocation_vars[option_key]
+                        depot_volume = self.customer_depots[depot_id]['annual_volume']
+                        extra_volume = max(depot_volume - min_volume, 0)
+
+                        self.model.add_constraint(
+                            band_var <= extra_volume * allocation_var,
+                            ctname=(
+                                f"band_extra_limit_{contract_name}_{depot_id}_{supplier_depot_id}_"
+                                f"{option_type}_{tier_name}"
+                            )
+                        )
+                        constraint_count += 1
+
                 # Band eligibility (cumulative): sum of all bands up to b must exceed min_volume if y_b = 1
                 # Only apply for non-base bands (min_volume > 0)
                 if min_volume > 0:
@@ -1035,8 +1056,72 @@ class FuelDepotOptimizerDocplex:
         
         # Direct comparison with tier name
         return tier_name in tier_part
-    
-    
+
+
+    def _get_incremental_contract_for_option(self, depot_id: int, supplier_depot_id: int, option_type: str) -> Optional[str]:
+        """Return incremental contract name if option belongs to one, otherwise None."""
+        for contract_name, contract_config in self.contract_configurations.items():
+            if contract_config.get('contract_type') != 'volume_tier_rewards':
+                continue
+
+            if self._get_tiering_regime(contract_config) != 'incremental':
+                continue
+
+            contract_suppliers = contract_config.get('suppliers', [])
+            supplier_name = self.supplier_depots.get(supplier_depot_id, {}).get('supplier_name', '')
+            if contract_suppliers and contract_suppliers != ['*'] and supplier_name not in contract_suppliers:
+                continue
+
+            contract_supplier_depots = contract_config.get('supplier_depots', ['*'])
+            if contract_supplier_depots and contract_supplier_depots != ['*'] and str(supplier_depot_id) not in contract_supplier_depots:
+                continue
+
+            transport_modes = contract_config.get('transport_modes', [])
+            if transport_modes and self._get_option_transport_mode(option_type) not in transport_modes:
+                continue
+
+            return contract_name
+
+        return None
+
+
+    def _compute_incremental_cost(self, option_key: Tuple[int, int, str], base_cost_per_litre: float, solution) -> Tuple[float, Dict[str, float]]:
+        """Compute total cost and band volume breakdown for an incremental contract option."""
+        depot_id, supplier_depot_id, option_type = option_key
+        total_cost = 0.0
+        band_breakdown: Dict[str, float] = {}
+
+        for (opt_key, tier_name), band_var in self.band_volume_vars.items():
+            if opt_key != option_key:
+                continue
+
+            volume = solution.get_value(band_var)
+            if abs(volume) < 1e-6:
+                continue
+
+            if tier_name.startswith('0_to_'):
+                cost_per_litre = base_cost_per_litre
+            else:
+                tier_option_type = f"{option_type}_tier_{tier_name}"
+                cost_per_litre = self.cost_matrices.get(depot_id, {}).get(supplier_depot_id, {}).get(tier_option_type)
+                if cost_per_litre is None:
+                    logger.warning(
+                        "Missing tier cost for incremental option %s band %s; using base cost",
+                        option_type,
+                        tier_name
+                    )
+                    cost_per_litre = base_cost_per_litre
+
+            total_cost += cost_per_litre * volume
+            band_breakdown[tier_name] = volume
+
+        if not band_breakdown:
+            depot_volume = self.customer_depots[depot_id]['annual_volume']
+            return depot_volume * base_cost_per_litre, {}
+
+        return total_cost, band_breakdown
+
+
     def _get_applicable_tiers_for_allocation(self, depot_id: int, supplier_depot_id: int, option_type: str) -> List[str]:
         """Get tiers that apply to a specific allocation."""
         applicable_tiers = []
@@ -1127,33 +1212,64 @@ class FuelDepotOptimizerDocplex:
         """Extract readable solution from docplex solution object."""
         allocations = []
         total_cost = 0
-        
+        band_volume_details: Dict[str, Dict[str, float]] = {}
+
         # Extract allocations
         for (depot_id, supplier_depot_id, option_type), var in self.allocation_vars.items():
             if solution.get_value(var) > 0.5:  # Variable is selected
                 depot_volume = self.customer_depots[depot_id]['annual_volume']
-                
-                # Get actual cost used (this is already the correct cost from precomputation)
-                actual_cost_per_litre = self.cost_matrices[depot_id][supplier_depot_id][option_type]
-                
-                # Determine cost type based on option name
+
+                # Base cost lookups
+                base_cost_per_litre = self.cost_matrices[depot_id][supplier_depot_id].get(option_type)
+                if base_cost_per_litre is None:
+                    logger.warning(
+                        "Missing base cost for depot %s, supplier depot %s, option %s", 
+                        depot_id,
+                        supplier_depot_id,
+                        option_type
+                    )
+                    base_cost_per_litre = 0.0
+
+                actual_cost_per_litre = base_cost_per_litre
+                cost_type = "base"
+                active_tier = None
+                total_depot_cost = depot_volume * base_cost_per_litre
+
+                option_key = (depot_id, supplier_depot_id, option_type)
+                incremental_contract = self._get_incremental_contract_for_option(depot_id, supplier_depot_id, option_type)
+
                 if 'tier_' in option_type:
                     cost_type = "tier_enhanced"
                     active_tier = self._extract_tier_from_option(option_type)
                     base_option_type = self._get_base_option_from_tier(option_type)
-                    base_cost_per_litre = self.cost_matrices[depot_id][supplier_depot_id].get(base_option_type)
+                    base_option_cost = self.cost_matrices[depot_id][supplier_depot_id].get(base_option_type)
+                    if base_option_cost is not None:
+                        base_cost_per_litre = base_option_cost
+                    actual_cost_per_litre = self.cost_matrices[depot_id][supplier_depot_id][option_type]
+                    total_depot_cost = depot_volume * actual_cost_per_litre
                 elif option_type.startswith('rac_'):
                     cost_type = "rac_penalty"
-                    active_tier = None
                     base_option_type = option_type.replace('rac_', '')
-                    base_cost_per_litre = self.cost_matrices[depot_id][supplier_depot_id].get(base_option_type)
-                else:
-                    cost_type = "base"
-                    active_tier = None
-                    base_cost_per_litre = actual_cost_per_litre
-                
-                total_depot_cost = depot_volume * actual_cost_per_litre
-                
+                    base_option_cost = self.cost_matrices[depot_id][supplier_depot_id].get(base_option_type)
+                    if base_option_cost is not None:
+                        base_cost_per_litre = base_option_cost
+                    actual_cost_per_litre = self.cost_matrices[depot_id][supplier_depot_id][option_type]
+                    total_depot_cost = depot_volume * actual_cost_per_litre
+                elif incremental_contract:
+                    total_depot_cost, band_breakdown = self._compute_incremental_cost(
+                        option_key,
+                        base_cost_per_litre,
+                        solution
+                    )
+                    if depot_volume > 0:
+                        actual_cost_per_litre = total_depot_cost / depot_volume
+                    else:
+                        actual_cost_per_litre = 0.0
+                    cost_type = "incremental"
+                    if band_breakdown:
+                        key_str = f"{depot_id}_{supplier_depot_id}_{option_type}"
+                        band_volume_details[key_str] = band_breakdown
+
                 allocation = {
                     'customer_depot_id': depot_id,
                     'customer_depot_name': self.customer_depots[depot_id]['name'],
@@ -1286,7 +1402,8 @@ class FuelDepotOptimizerDocplex:
                 'total_supplier_depots_used': len(supplier_depot_utilization),
                 'binding_constraints_count': len(binding_constraints),
                 'near_capacity_count': len(near_capacity_constraints)
-            }
+            },
+            'band_volume_details': band_volume_details
         }
     
     def _extract_tier_from_option(self, option_type: str) -> str:

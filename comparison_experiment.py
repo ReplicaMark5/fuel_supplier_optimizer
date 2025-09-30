@@ -20,8 +20,167 @@ from pareto_metrics import (
 )
 
 
+def _normalise_series(series: pd.Series, lower: float, upper: float) -> pd.Series:
+    span = (upper - lower) if (pd.notna(lower) and pd.notna(upper)) else None
+    if span is None or span == 0:
+        return pd.Series(np.zeros(len(series)), index=series.index)
+    return (pd.to_numeric(series, errors="coerce") - lower) / span
+
+
+def _strict_nondominated_and_dedup(df: pd.DataFrame, bounds: Dict[str, float], tol: float = 1e-6) -> pd.DataFrame:
+    """Return strict nondominated and de-duplicated DataFrame.
+
+    - Works in normalised space to use a consistent tolerance across magnitudes.
+    - Assumes cost is minimised and score is maximised.
+    - Drops near-duplicates by rounding normalised points.
+    """
+    if df is None or df.empty:
+        return df
+
+    if not {"cost", "score"}.issubset(df.columns):
+        return df
+
+    df = df.copy()
+    c_norm = _normalise_series(df["cost"], bounds.get("cost_min"), bounds.get("cost_max"))
+    s_norm = _normalise_series(df["score"], bounds.get("score_min"), bounds.get("score_max"))
+
+    data = np.column_stack([c_norm.to_numpy(dtype=float), s_norm.to_numpy(dtype=float)])
+    n = data.shape[0]
+    keep = np.ones(n, dtype=bool)
+
+    for i in range(n):
+        if not keep[i]:
+            continue
+        ci, si = data[i]
+        # A point j dominates i if it is no worse within tol and strictly better beyond tol in at least one objective
+        for j in range(n):
+            if i == j or not keep[j]:
+                continue
+            cj, sj = data[j]
+            no_worse = (cj <= ci + tol) and (sj >= si - tol)
+            strictly_better = (cj < ci - tol) or (sj > si + tol)
+            if no_worse and strictly_better:
+                keep[i] = False
+                break
+
+    filtered = df.loc[keep].copy()
+
+    # De-duplicate near-identical points (grid-based using normalised rounding)
+    c_round = np.round(_normalise_series(filtered["cost"], bounds.get("cost_min"), bounds.get("cost_max")), 6)
+    s_round = np.round(_normalise_series(filtered["score"], bounds.get("score_min"), bounds.get("score_max")), 6)
+    filtered["_c_key"] = c_round
+    filtered["_s_key"] = s_round
+    filtered = filtered.drop_duplicates(subset=["_c_key", "_s_key"]).drop(columns=["_c_key", "_s_key"]) 
+
+    return filtered
+
+
+def _diagnose_removed(
+    original: pd.DataFrame,
+    filtered: pd.DataFrame,
+    bounds: Dict[str, float],
+    tol: float = 1e-6,
+    round_decimals: int = 6,
+) -> pd.DataFrame:
+    """Return a table of removed points with reason and (if dominated) a dominating point.
+
+    Reasons:
+    - 'dominated': strictly dominated (with tolerance) by another original point
+    - 'duplicate': near-duplicate merged by rounding in normalised space
+    - 'unknown': fallback when neither condition is detected (should be rare)
+    """
+    if original is None or original.empty:
+        return pd.DataFrame()
+
+    needed = {"cost", "score"}
+    if not needed.issubset(original.columns):
+        return pd.DataFrame()
+
+    orig = original.copy()
+    kept = filtered.copy()
+
+    # normalised columns for both sets
+    for df in (orig, kept):
+        df["_c_norm"] = _normalise_series(df["cost"], bounds.get("cost_min"), bounds.get("cost_max"))
+        df["_s_norm"] = _normalise_series(df["score"], bounds.get("score_min"), bounds.get("score_max"))
+
+    # Identify removed rows by exact (cost, score) mismatch; complement with tolerance check below
+    key_cols = ["cost", "score"]
+    merged = orig.merge(kept[key_cols], on=key_cols, how="left", indicator=True)
+    removed = merged[merged["_merge"] == "left_only"].drop(columns=["_merge"]).copy()
+    if removed.empty:
+        return pd.DataFrame()
+
+    # Build normalised arrays for dominance check
+    P = orig[["_c_norm", "_s_norm"]].to_numpy(float)
+
+    def dominates(j, i):
+        cj, sj = P[j]
+        ci, si = P[i]
+        no_worse = (cj <= ci + tol) and (sj >= si - tol)
+        strictly_better = (cj < ci - tol) or (sj > si + tol)
+        return no_worse and strictly_better
+
+    # Index map from cost,score to original index (may have duplicates; take first)
+    idx_map = {}
+    for k, row in orig.reset_index().iterrows():
+        idx_map.setdefault((row["cost"], row["score"]), row["index"])  # preserve original index
+
+    reasons = []
+    dom_costs = []
+    dom_scores = []
+
+    # Precompute rounded keys for de-dup reasoning
+    orig_round_keys = list(zip(orig["_c_norm"].round(round_decimals), orig["_s_norm"].round(round_decimals)))
+    kept_round_keys = set(zip(kept["_c_norm"].round(round_decimals), kept["_s_norm"].round(round_decimals)))
+
+    for r in removed.itertuples():
+        i = idx_map.get((getattr(r, "cost"), getattr(r, "score")))
+        reason = "unknown"
+        dcost = np.nan
+        dscore = np.nan
+
+        # Check duplicate by rounded key
+        r_key = orig_round_keys[i]
+        if r_key in kept_round_keys:
+            reason = "duplicate"
+        else:
+            # Find a dominator in original set
+            found = False
+            for j in range(len(P)):
+                if j == i:
+                    continue
+                if dominates(j, i):
+                    reason = "dominated"
+                    dcost = orig.iloc[j]["cost"]
+                    dscore = orig.iloc[j]["score"]
+                    found = True
+                    break
+            if not found and reason == "unknown":
+                # As a fallback, try domination by kept set only (should be redundant but helpful for diagnostics)
+                K = kept[["_c_norm", "_s_norm"]].to_numpy(float)
+                ci, si = P[i]
+                for (cj, sj), kr in zip(K, kept.itertuples()):
+                    no_worse = (cj <= ci + tol) and (sj >= si - tol)
+                    strictly_better = (cj < ci - tol) or (sj > si + tol)
+                    if no_worse and strictly_better:
+                        reason = "dominated"
+                        dcost = getattr(kr, "cost")
+                        dscore = getattr(kr, "score")
+                        break
+
+        reasons.append(reason)
+        dom_costs.append(dcost)
+        dom_scores.append(dscore)
+
+    removed["reason"] = reasons
+    removed["dominator_cost"] = dom_costs
+    removed["dominator_score"] = dom_scores
+    return removed
+
+
 def run_econstraint(optimizer: SelectiveNAFlexibleEConstraintOptimizer, n_points: int, constraint_type: str):
-    df = optimizer.run_full_optimization(n_points=n_points, constraint_type=constraint_type)
+    df = optimizer.run_full_optimization(n_points=n_points, constraint_type=constraint_type, show_plots=False)
     df_feasible = df[df['status'] == 'Optimal'].copy()
     df_feasible['method'] = 'ε-Constraint'
     metadata = getattr(optimizer, 'last_run_metadata', {})
@@ -111,6 +270,20 @@ def main():
         seed=args.seed,
     )
 
+    # Post-filter: strict nondomination + de-duplication (fair comparison)
+    prelim_bounds = compute_normalisation_bounds([df_econst, df_nsga])
+    before_counts = (len(df_econst), len(df_nsga))
+
+    # Keep originals for diagnostics
+    df_econst_raw = df_econst.copy()
+    df_nsga_raw = df_nsga.copy()
+
+    df_econst = _strict_nondominated_and_dedup(df_econst, prelim_bounds)
+    df_nsga = _strict_nondominated_and_dedup(df_nsga, prelim_bounds)
+    after_counts = (len(df_econst), len(df_nsga))
+    print(f"Filtered to strict nondomination + de-dup (ε-Constraint {before_counts[0]} -> {after_counts[0]}, NSGA-II {before_counts[1]} -> {after_counts[1]})")
+
+    # Normalise for reporting convenience
     bounds = compute_normalisation_bounds([df_econst, df_nsga])
     df_econst = apply_normalisation(df_econst, bounds)
     df_nsga = apply_normalisation(df_nsga, bounds)
@@ -132,6 +305,14 @@ def main():
 
     df_econst.to_csv(os.path.join(output_dir, f'econstraint_front_{timestamp}.csv'), index=False)
     df_nsga.to_csv(os.path.join(output_dir, f'nsga_front_{timestamp}.csv'), index=False)
+
+    # Diagnostics: record removed points and their reason
+    removed_econst = _diagnose_removed(df_econst_raw, df_econst, prelim_bounds)
+    removed_nsga = _diagnose_removed(df_nsga_raw, df_nsga, prelim_bounds)
+    if not removed_econst.empty:
+        removed_econst.to_csv(os.path.join(output_dir, f'econstraint_removed_{timestamp}.csv'), index=False)
+    if not removed_nsga.empty:
+        removed_nsga.to_csv(os.path.join(output_dir, f'nsga_removed_{timestamp}.csv'), index=False)
 
     summary_payload = {
         'timestamp': timestamp,

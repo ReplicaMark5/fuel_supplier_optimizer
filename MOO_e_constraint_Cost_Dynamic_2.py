@@ -390,7 +390,7 @@ class SelectiveNAFlexibleEConstraintOptimizer:
         
         return epsilon_range
     
-    def run_full_optimization(self, epsilon_range=None, n_points=21, constraint_type="cost", **kwargs):
+    def run_full_optimization(self, epsilon_range=None, n_points=21, constraint_type="cost", show_plots: bool = True, **kwargs):
 
 
         """Run complete e-constraint optimization with results export"""
@@ -479,8 +479,9 @@ class SelectiveNAFlexibleEConstraintOptimizer:
         print(f"\nSample Pareto optimal solutions:")
         print(df_feasible.head())
         
-        # Create visualizations
-        self.create_plots(df_feasible, output_path, constraint_type)
+        # Create visualizations (optional for headless/sandboxed runs)
+        if show_plots:
+            self.create_plots(df_feasible, output_path, constraint_type)
         
         return df_pareto
     

@@ -1,0 +1,23 @@
+% Appendix: Optimization Configuration Schema and Listing
+% Requires: \usepackage{listings} (or minted) and \usepackage{caption}
+
+\section*{Optimization Configuration Schema (Overview)}
+The optimization is configured via a JSON file specifying:
+\begin{itemize}
+  \item \textbf{basic\_parameters}: economic and operational constants (e.g., WACC, tanker capacity, cost assumptions, multi-drop toggle).
+  \item \textbf{present\_value\_settings}: payment-term mappings for present value discounting across base, tier, and delivery/equipment terms.
+  \item \textbf{international\_fuel\_prices}: regional price references supporting cross-border modeling.
+  \item \textbf{supplier\_contract\_configurations}: contract rules (RAC vs volume tiers), regimes (all\_units vs incremental), reward bands, and combination rules.
+  \item \textbf{supplier\_del\_capabilities}: availability of equipment rental for delivery (DEL) options by supplier.
+  \item \textbf{country\_allocation\_constraints}: allow/block lists controlling cross-border allocations.
+  \item \textbf{supplier\_depot\_capacity\_limits}: per-terminal annual throughput limits (litres).
+\end{itemize}
+This sanitized listing preserves structural fidelity with adjusted/anonymized values to protect proprietary information while enabling reproducibility on the synthetic dataset.
+
+\vspace{0.5em}
+\noindent\textbf{Sanitized Configuration Listing}
+
+% Ensure \usepackage{listings} in the main preamble
+\lstset{basicstyle=\ttfamily\footnotesize, breaklines=true}
+\lstinputlisting[language=JSON, caption={Sanitized optimization configuration used for reported runs.}]{final_version/chapters_copy/optimization_config_sanitized.json}
+

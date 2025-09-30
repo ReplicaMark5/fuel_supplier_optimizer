@@ -6,7 +6,7 @@
 
 
 
-\chapter{Results and Discussion}
+\chapter{Results and Discussion}\label{ch:results}
 % put these two lines after every \chapter{} command
 \vspace{-2em}
 %\minitoc
@@ -20,12 +20,160 @@
 
 %\startarabicpagenumbering % must be just after the first \chapter{} command
 
-\section{Model Verification and Validation \note{could do in previous chapter}}
-\section{Sensitivity Analysis}
-\section{Real-World Implications for Unitrans}
-\section{Future Research Directions}
+\section{Model Verification and Validation}\label{sec:vv}
+
+This section operationalizes the Specification-Driven AI-Augmented Development (SDAAD) verification framework introduced in \secref{sec:sdaad}, presenting comprehensive verification and validation evidence that ensures the mathematical accuracy, algorithmic correctness, and implementation reliability of the multi-objective supplier allocation optimization model. The verification approach implements multiple independent validation mechanisms to provide confidence in the model's mathematical formulations, computational accuracy, and business logic implementation.
+
+\subsection{Precomputation Pipeline Verification}
+
+The precomputation pipeline underwent comprehensive verification through an independent manual cost calculator framework that validates the integrity of the complete cost calculation workflow from raw data extraction to optimization-ready cost matrices. This verification approach implements a four-dimensional validation strategy to ensure mathematical accuracy and business logic correctness across all 8,833+ cost options.
+
+\subsubsection{Manual Cost Calculator Verification Framework}
+
+The manual cost calculator (\texttt{tools/manual\_cost\_calculator.py}) provides an independent verification system that validates the precomputation pipeline across four critical dimensions:
+
+\textbf{1. Data Pipeline Integrity Verification}
+
+This component verifies the accuracy of database joins, data retrieval, and parameter mapping throughout the precomputation system. The researcher manually extracts parameters from diesel price databases, supplier-specific rebate tables, coordinate-based distance calculations, and volume tier configurations for selected depot-supplier combinations, then inputs these values into the independent manual calculator. By comparing the results of the independent calculator from the manually retrieved input values with the results from the precompution pipeline stored in the cost dictionary and retrieved using the (\texttt{tools/query\_costs.py}) tool. The accuracy of the pipeline can be verified across the randomly sampled and diverse supplier depot customer depot combinations to cover all edge cases. 
+
+\textbf{2. Mathematical Formula Verification}
+
+Independent implementation of all cost calculation formulas enables detection of mathematical errors through comparative analysis. The manual hand coded calculator implements identical mathematical formulas separately from the main system, including present value discounting calculations using $\frac{\text{price} - \text{rebates}}{(1 + \text{WACC}/365)^{\text{days}}}$, transport cost computations, and volume tier enhancement logic. Systematic comparison of formula outputs against precomputation results provides mathematical proof that cost calculation algorithms produce correct values.
+
+\textbf{3. Business Logic Verification and validation}
+
+The business rule implementations undergo validation through comprehensive testing of volume tier combination rules, payment term handling mechanisms, and cost option generation logic. The verification system tests both ``override'' and ``additive'' volume tier combination rules, validates COC versus DEL option calculations across cash/NET30/NET45/NET60 payment terms as well as customer-owned and rent equipment configurations. This proceedure was followed throughout the project to ensure that business rule implementations where acurallty reflected in the cost calculations. 
+
+\textbf{4. End-to-End Computational Verification}
+
+Complete pipeline verification involves the researcher selecting representative depot-supplier combinations spanning different suppliers, geographic distances, volume tier configurations, and payment term structures. For each selected combination, the researcher manually inputs the extracted parameters into the manual calculator, which executes the full calculation chain from parameter input through formula application to final cost determination. Results are then compared against the corresponding precomputation system outputs stored in the cost dictionary to confirm the entire cost calculation pipeline produces mathematically correct inputs for optimization.
+
+\subsubsection{Verification Coverage and Results}
+
+The verification framework encompasses comprehensive testing across the complete problem space:
+
+\textbf{Scope Coverage}: The verification process validates 40 strategically selected depot-supplier combinations from the complete 2,011 combination matrix, ensuring representative coverage across the diverse contract conditions configured in the optimization system. The selected combinations encompass different supplier-depot pairings under varying contract configurations including RAC (Rebate Adjustment Clause) conditions, volume tier reward structures with both additive and override combination rules, multiple payment term scenarios (cash, NET30, NET45, NET60), and diverse equipment ownership arrangements (customer-owned, rental, purchase options). This comprehensive sampling approach ensures verification coverage across all major contract types and business logic scenarios configured in the system, providing practical verification coverage while maintaining statistical confidence in the precomputation pipeline's accuracy.
+
+\textbf{Method Validation}: Both COC (customer-owned capacity) calculations across 4 payment terms and DEL (delivered) calculations across 3 equipment ownership options receive independent verification, ensuring accuracy across all procurement delivery methods.
+
+\textbf{Parameter Integration}: Transport costs, rebate applications, volume tier enhancements, present value discounting, and strategic score integration undergo end-to-end validation to confirm proper parameter integration throughout the cost calculation pipeline.
+
+\textbf{Implementation Independence}: The manual calculator uses completely separate code paths and data access mechanisms from the precomputation pipeline, ensuring that systematic code errors or implementation biases cannot propagate between systems and compromise verification integrity.
+
+This multi-dimensional verification approach provides confidence that the optimization model receives mathematically accurate and properly retrieved cost inputs, establishing the foundation for valid optimization results and reliable procurement decision support.
+
+\subsection{Docplex Algorithm Verification}
+
+The optimization model's mathematical correctness and algorithmic implementation underwent systematic verification through controlled test scenarios with predetermined optimal solutions. This verification strategy employs minimal datasets with mathematically predictable outcomes to validate optimization logic, ensuring that the advanced model including all variables and constraints correctly implements the business rules.
+
+\subsubsection{Controlled Test Scenario Methodology}
+
+The verification approach creates simplified problems where optimal solutions can be determined analytically beforehand. A systematic test data generator (\texttt{test\_data\_generator.py}) produces controlled scenarios with obvious cost differentials and constrained capacities, enabling precise validation of optimization logic against known theoretical optima.
+
+\textbf{Core Verification Principle}: If the optimizer produces theoretically correct solutions for simplified problems with predictable outcomes, it demonstrates mathematical correctness for the underlying algorithmic implementation.
+
+\subsubsection{Comprehensive Test Suite Implementation}
+
+Nine distinct verification scenarios systematically test all major model components:
+
+\textbf{1. Assignment Constraint Verification}: Basic depot-supplier allocation with obvious cost differences (R1.00/L vs R2.00/L) validates fundamental assignment logic, ensuring each depot receives exactly one allocation.
+
+\textbf{2. Capacity Constraint Enforcement}: Limited supplier capacity scenarios force allocation diversification, testing binding constraint handling when cheaper suppliers cannot serve total demand.
+
+\textbf{3. Infeasibility Detection}: Total demand exceeding total capacity tests proper error handling and infeasible problem recognition.
+
+\textbf{4-5. Volume Tier Logic Validation}: Both all-units and incremental tier structures undergo validation with volumes above and below tier thresholds, confirming correct tier activation and cost calculation logic.
+
+\textbf{6. Multi-Objective Functionality}: Three optimization modes (cost-only, strategic-only, $\epsilon$-constraint) tested with conflicting cost-strategic trade-offs to validate proper objective function implementation.
+
+\textbf{7. RAC Contract Logic}: Rebate adjustment clause penalty calculations verified for below-threshold volumes, ensuring correct penalty cost application.
+
+\textbf{8. Mathematical Accuracy}: Internal cost calculations compared against solver objective values within numerical tolerance (0.01), confirming computational precision.
+
+\subsubsection{Critical Algorithm Bug Resolution}
+
+Initial verification revealed a significant algorithmic error in incremental volume tier logic:
+
+\textbf{Problem Identified}: Incremental tier band-splitting incorrectly charged all volume at base cost rather than applying progressive pricing across volume bands.
+
+\textbf{Root Cause Analysis}: Four implementation errors were systematically identified: incorrect binary variable creation for base bands, missing volume constraint logic for band limits, solution extraction failures for incremental contracts, and improper band volume calculations for blended cost computation.
+
+\textbf{Comprehensive Fix Implementation}: Enhanced band volume constraints, corrected incremental cost computation algorithms, and improved contract detection logic resolved all identified issues.
+
+\textbf{Verification Results}: Post-fix testing achieved 100\% success rate (9/9 scenarios), confirming complete algorithmic correctness.
+
+\subsubsection{Verification Infrastructure and Quality Assurance}
+
+The automated test suite (\texttt{optimizer\_verification\_suite.py}) provides systematic test execution with detailed result analysis, expected versus actual outcome comparison, and comprehensive error reporting capabilities. This infrastructure enables regression testing after code modifications and serves as a quality gate throughout development.
+
+\textbf{Mathematical Correctness Validation}: All constraint types undergo systematic verification including assignment constraints (each depot exactly one allocation), capacity constraints (no supplier depot exceeded limits), volume thresholds (tier activation only when qualified), and mutual exclusivity (proper RAC versus base option separation).
+
+\textbf{Edge Case Handling}: The verification framework confirms proper handling of infeasible problems, below-threshold scenarios, and binding capacity constraints that force allocation diversification.
+
+This comprehensive verification approach provides mathematical proof that the multi-objective fuel depot allocation optimizer correctly implements sophisticated business logic and produces optimal solutions across all tested scenarios, establishing confidence in the model's algorithmic correctness and implementation reliability.
+
+\subsection{Business Logic Validation}
+
+Consistent with the SDAAD methodology's verification framework, the output specifications underwent comprehensive business logic validation to ensure accurate representation of fuel supplier operational practices and contractual structures. This validation process verified that the mathematical formulations and algorithmic implementations correctly model real-world fuel procurement scenarios and industry-standard commercial arrangements.
+
+The business logic validation employed multiple complementary approaches to establish model fidelity: literature review of supply chain optimization and fuel procurement practices, domain expertise consultation through industry professionals, systematic cross-referencing with global fuel supplier operational models, and comprehensive analysis of contractual mechanisms employed by major international fuel suppliers. This multi-source validation approach ensures that the implemented optimization model reflects authentic business practices rather than theoretical abstractions.
+
+Four comprehensive output specification documents provide detailed implementation documentation that underwent systematic business logic validation:
+
+\textbf{Cost Calculation Formulas} (\texttt{cost\_formulas.md}): Documents all financial calculation methodologies including present value discounting, multi-payment term structures, transportation cost modeling, and volume tier rebate mechanisms. Validation confirmed alignment with South African fuel industry pricing standards, WACC-based present value calculations consistent with corporate finance practices, and volume tier structures reflecting actual supplier contract negotiations.
+
+\textbf{Database Schema Documentation} (\texttt{database\_schema\_documentation.md}): Specifies the relational data architecture supporting 9 suppliers, 60 customer depots, 75 supplier depots across 5 SADC countries. Business validation verified that the strategic supplier scoring framework reflects genuine procurement evaluation criteria, capacity constraint modeling aligns with terminal operational limitations, and cross-border allocation constraints reflect actual regulatory and operational restrictions in Southern African fuel trade.
+
+\textbf{Mathematical Optimization Formulation} (\texttt{mathematical\_optimization\_formulation.md}): Details the MILP formulation including 10,452 decision variables, dual volume tier regimes, and strategic supplier scoring integration. Validation confirmed that constraint structures accurately enforce mutual exclusivity relationships found in real supplier contracts, volume tier logic reflects industry-standard ``all-units'' and ``incremental'' rebate mechanisms, and capacity modeling captures authentic terminal throughput limitations.
+
+\textbf{Optimization Configuration Documentation} (\texttt{optimization\_config\_documentation.md}): Describes the JSON-based configuration system enabling complex contract modeling without code modification. Business validation verified that the configuration parameters capture realistic contract variations, payment term structures reflect industry cash flow practices, and supplier capability constraints model authentic operational limitations in fuel delivery services.
+
+\subsubsection{Volume Tier Logic Validation}
+
+Volume tier contract implementations underwent systematic validation against industry-standard rebate mechanisms employed by major fuel suppliers globally. The dual regime approach (all-units versus incremental) reflects authentic contractual variations observed in fuel procurement: all-units regimes mirror bulk discount structures where entire volumes receive enhanced rebates upon threshold achievement, while incremental regimes model progressive discount structures where only excess volumes receive preferential pricing.
+
+The mathematical implementation of volume thresholds, rebate combination rules (additive versus override), and progressive eligibility constraints was validated against actual fuel supplier contract documentation and confirmed to accurately represent commercial practices including take-or-pay arrangements, volume commitment incentives, and tiered pricing structures commonly employed in the Southern African fuel market.
+
+\subsubsection{RAC Implementation Validation}
+
+Rebate Adjustment Clause (RAC) penalty mechanisms underwent validation against industry practices for volume commitment enforcement. The implemented mutual exclusivity logic between base and penalty options accurately reflects contractual mechanisms where suppliers withdraw rebate benefits and impose penalty pricing when minimum volume commitments are not achieved.
+
+The mathematical formulation correctly models the binary nature of volume commitment compliance: either minimum thresholds are met (enabling base rebate pricing) or they are not (triggering penalty cost structures). This binary logic aligns with standard fuel supplier contract enforcement mechanisms and reflects authentic commercial risk-sharing arrangements between suppliers and customers.
+
+\subsubsection{Configuration-Driven Validation}
+
+The comprehensive configuration system underwent business logic validation to ensure that modeled scenarios reflect realistic commercial arrangements. Cross-border allocation constraints were validated against actual SADC fuel trade regulations, capacity limit configurations were verified against typical fuel terminal throughput capabilities, and payment term structures were confirmed to reflect industry-standard cash flow management practices.
+
+Strategic supplier scoring criteria and importance weights were derived from actual Unitrans procurement evaluation frameworks, ensuring that the multi-objective optimization reflects genuine decision-making priorities rather than theoretical constructs. The configuration system's ability to model diverse contract types, equipment ownership arrangements, and regional operational constraints was validated against variations observed across multiple fuel supplier relationships, confirming broad applicability to real-world procurement scenarios.
+
+
+\subsection{Model Results \todo{explain the model was run using augmented/adjusted/dummy data as true supplier pricing and contract structures cannot be displayed due to NDAs etc... basically proprietary information. however i must show results from the model runny on the data i used}}
+
+\todo{display map and various other allocations and aspects of what the optimizer outputs after it is run}
+
+
+
+\iffalse
+\section{Sensitivity Analysis \todo{example, vary parameter values and see how it effects results, create many configs and cycel truth them and collect results and then create visualizations for this}}
+\fi
+
+\section{Future Research Directions}\label{sec:future}
 
 The supplier allocation optimization model developed in this research establishes a foundation for various targeted avenues of future investigation. These research directions focus on direct extensions of the current work that could enhance both the methodological rigor and practical applicability of fuel procurement optimization.
+
+\subsection{AI-Augmented Academic Research Methodology}
+
+The SDAAD methodology developed in this research provides a foundation for systematic AI-augmented academic software development that addresses contemporary challenges in computational research:
+
+\begin{itemize}
+    \item Standardized approaches to AI-augmented implementation with quality assurance frameworks 
+    \item Enhanced reproducibility through systematic verification frameworks and audit trails
+    \item Transparent methodologies for AI augmentation disclosure and academic accountability
+    \item Professional-grade quality assurance standards for ai augmented software development
+    \item Template frameworks for emerging academic requirements regarding AI use documentation
+\end{itemize}
+
+Future research could extend the SDAAD framework through development of standardized specification templates, automated verification tool integration, and comparative analysis of AI-augmented versus traditional academic software development approaches. The methodology provides a template for other researchers facing similar challenges in AI-augmented academic development.
 
 \subsection{Advanced Multi-Criteria Decision-Making (MCDM) Methods}
 
@@ -43,7 +191,7 @@ While this research successfully integrated strategic supplier scores with cost 
 \subsection{Multi-Objective Optimization Methodological Extensions}
 
 \subsubsection{Advanced MOO Method Development}
-Building on the comprehensive NSGA-II vs. $\epsilon$-constraint comparison presented in Chapter 3, future research could explore additional multi-objective techniques that address specific limitations identified in the comparative analysis:
+Building on the comprehensive NSGA-II vs. $\epsilon$-constraint comparison presented in Chapter \ref{ch:comparative}, future research could explore additional multi-objective techniques that address specific limitations identified in the comparative analysis:
 
 \textbf{Hybrid Methodologies}: Development of hybrid approaches that combine the deterministic optimality of $\epsilon$-constraint methods with the solution diversity of evolutionary algorithms could leverage the complementary strengths identified in the comparative evaluation. For instance, using NSGA-II for rapid exploration followed by $\epsilon$-constraint refinement at promising regions.
 
@@ -85,7 +233,7 @@ The current cross-border constraints implement policy-based allow/block rules bu
 \subsection{Operational Constraint Enhancement}
 
 \subsubsection{Equipment and Infrastructure Modeling}
-Several operational constraints identified during model development represent natural extensions for enhanced realism:
+Numerous operational constraints identified during model development represent natural extensions for enhanced realism:
 
 \textbf{Per-Depot Equipment Cost Modeling}: Implementation of depot-specific equipment cost calculations rather than uniform cost assumptions, reflecting actual infrastructure variations and investment requirements across the customer depot network.
 
@@ -106,6 +254,8 @@ While this research prioritized mathematical rigor through JSON configuration sy
 
 \textbf{Sensitivity Analysis Tools}: Automated sensitivity analysis capabilities for key parameters (WACC rates, fuel prices, strategic weights) could support robust decision-making under uncertainty.
 
+\iffalse
+
 \subsection{Methodological Validation and Performance Analysis}
 
 \subsubsection{Extended Algorithm Performance Analysis}
@@ -118,6 +268,8 @@ While this research prioritized mathematical rigor through JSON configuration sy
 
 \textbf{Cost Savings Quantification}: Systematic measurement of realized cost savings compared to traditional procurement approaches could demonstrate the practical value of the optimization framework.
 
+\fi
+
 \subsection{Data Enhancement and Automation}
 
 \subsubsection{Data Quality and Processing Improvements}
@@ -126,6 +278,3 @@ While this research prioritized mathematical rigor through JSON configuration sy
 \textbf{Dynamic Pricing Integration}: Investigation of real-time fuel pricing updates and their integration into the optimization model could enhance responsiveness to market conditions.
 
 These focused research directions represent practical and achievable extensions of the current work that directly address fuel procurement optimization challenges. The foundation established by this research provides a solid platform for pursuing these targeted investigative pathways while maintaining focus on the core domain of strategic supplier allocation for fuel depot operations.
-
-
-

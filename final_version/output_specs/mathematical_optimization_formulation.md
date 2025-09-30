@@ -59,14 +59,16 @@ All costs are **precomputed** from base costs minus rebates:
 **Minimize total annual fuel procurement cost:**
 
 ```
-minimize ∑_{i∈I} ∑_{j∈J} ∑_{o∈O_base} V_i × C_{i,j,o} × x_{i,j,o} +
-       ∑_{c∈C_inc} ∑_{b∈B_c} ∑_{i,j,o} C_{i,j,o}^b × s_{i,j,o,b}
+minimize ∑_{i∈I} ∑_{j∈J} ∑_{o∈O \setminus O^{inc}_{base}} V_i × C_{i,j,o} × x_{i,j,o} +
+       ∑_{c∈C_{inc}} ∑_{b∈B_c} ∑_{i,j,o} C_{i,j,o}^b × s_{i,j,o,b}
 ```
 
 **Where**:
-- **Base Options** (all contracts): `∑ V_i × C_{i,j,o} × x_{i,j,o}` for all allocation options
-- **Incremental Band Costs**: `C^0 × s_{i,j,o,0}` (base band) + `C^{rebated} × s_{i,j,o,b}` (tier bands with rebate)
-- **All-Units Options**: Tier-enhanced costs `C_{i,j,o}^tier` included in base options sum
+- **Non-incremental Options**: `∑ V_i × C_{i,j,o} × x_{i,j,o}` for base, RAC, and all-units tier-enhanced options.
+- **Incremental Band Costs**: `C^{base} × s_{i,j,o,0}` for base bands (no rebate) plus `C^{rebated}_{b} × s_{i,j,o,b}` for higher bands.
+- **Incremental Base Options** are excluded from the first summation because their cost is accounted for via the band volumes `s_{i,j,o,b}`.
+
+Here `O^{inc}_{base}` denotes the subset of base options that participate in incremental contracts and therefore rely on band volumes for costing.
 
 **Key Insight**: The objective uses **precomputed per-option costs** (base, RAC, tier), and in incremental contracts applies them per band via the s_{o,b} volumes.
 
@@ -76,7 +78,8 @@ The system supports **three distinct optimization modes** for multi-objective an
 
 #### Mode 1: Cost-Only Optimization (Default Single-Objective)
 ```
-minimize ∑_{i∈I} ∑_{j∈J} ∑_{o∈O} V_i × C_{i,j,o} × x_{i,j,o}
+minimize ∑_{i∈I} ∑_{j∈J} ∑_{o∈O \setminus O^{inc}_{base}} V_i × C_{i,j,o} × x_{i,j,o}
+        + ∑_{c∈C_{inc}} ∑_{b∈B_c} ∑_{i,j,o} C_{i,j,o}^b × s_{i,j,o,b}
 ```
 Standard cost minimization without strategic considerations.
 
@@ -91,7 +94,8 @@ Where `S_s(j)` is the strategic score for supplier `s` that owns supplier depot 
 #### Mode 3: ε-Constraint Method (Pareto Front Generation)
 **Primary Objective** (Cost Minimization):
 ```
-minimize ∑_{i∈I} ∑_{j∈J} ∑_{o∈O} V_i × C_{i,j,o} × x_{i,j,o}
+minimize ∑_{i∈I} ∑_{j∈J} ∑_{o∈O \setminus O^{inc}_{base}} V_i × C_{i,j,o} × x_{i,j,o}
+        + ∑_{c∈C_{inc}} ∑_{b∈B_c} ∑_{i,j,o} C_{i,j,o}^b × s_{i,j,o,b}
 ```
 
 **Subject to Strategic Score Constraint**:
@@ -166,7 +170,9 @@ Define total volume for contract eligibility as:
 ```
 V_c^{total} = ∑_{i∈I_c} ∑_{j∈J_c} ∑_{o∈O_c^{vol}} V_i × x_{i,j,o}
 ```
-Where `O_c^{vol}` includes base and tier options contributing to volume accumulation
+Where `O_c^{vol}` includes base and tier options contributing to volume accumulation,
+and only options whose transport modes are listed in the contract's `volume_calculation_modes`
+contribute to this sum (if provided; otherwise `transport_modes` apply).
 
 #### Tier Band Eligibility:
 ```
@@ -185,42 +191,57 @@ Where `z_{c,b}` ∈ {0,1} is the selection variable for band `b`
 ∑_{b∈B_c} z_{c,b} ≤ 1
 ```
 
-#### Tier Option Gating (Linear Equivalence of Indicator):
+#### Tier Option Gating (Per-Band Selection):
+For each tier-enhanced option `o` that belongs to band `b` in contract `c`:
 ```
-x_{i,j,o} ≤ 1 - (1 - z_{c,b})    ∀tier options o belonging to band b
+x^{tier(b)}_{i,j,o} ≤ z_{c,b}
 ```
-Equivalent to: "If `z_{c,b} = 0` then `x_{i,j,o} = 0`" for tier options in band `b`
+Meaning: if band `b` is not selected (`z_{c,b}=0`), then tier options tied to that band cannot be chosen.
 
-#### Base Option Exclusion (All-Units Logic):
+#### Base Option Exclusion (All-Units Logic, Per Contract):
+Define `y_{c,any} = OR({z_{c,b} | b ∈ B_c})` for each contract `c`. Then forbid base options for that contract when any band is selected:
 ```
-x_{i,j,o} ≤ 1 - y_{any}    ∀base options o in contract c
+x_{i,j,o}^{base} ≤ 1 - y_{c,any}    ∀base options o in contract c
 ```
-Where `y_{any} = OR({z_{c,b} | b ∈ B_c})`, implemented through auxiliary binary variable
 
-**Key All-Units Logic**: When any tier band is selected, all base options for the contract are forbidden, enforcing true volume tier behavior.
+**Key All-Units Logic**: When any tier band is selected for a contract, all base options for that contract are forbidden, enforcing true volume tier behavior.
 
 ### 3. Incremental Regime Tier Constraints (Regime B)
 
 For each contract `c` with incremental tiering (`c ∈ C_{incremental}`):
 
 #### Flow Conservation (Band Splitting):
-For each allocated option `(i,j,o)` where `x_{i,j,o} = 1`:
+For each option `(i,j,o)` subject to contract `c`:
 ```
-∑_{b∈B_c} s_{i,j,o,b} = V_i
+∑_{b∈B_c} s_{i,j,o,b} = V_i × x_{i,j,o}
 ```
-Volume must be split across tier bands within the depot's demand
+Volume is routed through band variables only when the option is selected (`x_{i,j,o} = 1`).
 
 #### Band Capacity Constraints:
 ```
-∑_{i∈I_c} ∑_{j∈J_c} ∑_{o∈O_c} s_{i,j,o,b} ≤ W_b × z_{c,b}    ∀b ∈ B_c
+∑_{i∈I_c} ∑_{j∈J_c} ∑_{o∈O_c} s_{i,j,o,b} ≤
+    
+    \begin{cases}
+        W_b & \text{if } b \text{ is the base band (}T_{c,b}=0\text{)} \\
+        W_b × z_{c,b} & \text{otherwise}
+    \end{cases}
+
 ```
-Total volume in band `b` cannot exceed band width when activated
+Base bands enforce a hard cap without a binary selector, while higher bands require activation by `z_{c,b}`.
+
+#### Per-Option Excess Volume Limits:
+For non-base bands with minimum threshold `T_{c,b}`:
+```
+s_{i,j,o,b} ≤ max(0, V_i - T_{c,b}) × x_{i,j,o}
+```
+Ensures each depot-option can only place excess litres above the band’s minimum into that band.
 
 #### Cumulative Volume Eligibility:
 ```
 ∑_{k≤b} ∑_{i∈I_c} ∑_{j∈J_c} ∑_{o∈O_c} s_{i,j,o,k} ≥ T_{c,b} × z_{c,b}    ∀b ∈ B_c
 ```
-Progressive eligibility - higher bands require lower bands to be filled first
+Progressive eligibility - higher bands require lower bands to be filled first. Only options
+whose modes belong to `volume_calculation_modes` contribute to the cumulative sums (if provided; otherwise `transport_modes` apply).
 
 #### Monotonicity (Higher Bands Require Lower Bands):
 ```
@@ -310,6 +331,7 @@ Where:
 - Country information is extracted from depot database tables (`customer_depots.Country`, `supplier_depots.Country`)
 - Provides flexible control over cross-border fuel supply policies
 - Can model scenarios from same-country-only to selective cross-border permissions
+- Blocked destinations take precedence when both `allowed_destinations` and `blocked_destinations` are provided
 
 ## Option Types and Cost Structure
 
@@ -454,7 +476,7 @@ supplier_name = depots.get(supplier_id, {}).get('supplier_name', '')
 ### 7. Numerical Implementation Details
 - **Solver**: IBM CPLEX via DOcplex 2.23.222 Community Edition
 - **Variable Types**: Mixed-integer (binary allocation + continuous band splits)
-- **Objective Direction**: Minimize (ZXOR maximize as originally implemented)
+- **Objective Direction**: Minimize cost (Modes 1 and ε primary objective); maximize strategic score (Mode 2)
 - **Constraint Types**: Linear equality/inequality (replaced pseudo-indicator syntax)
 
 ### 8. Regression Testing Methodology
@@ -558,22 +580,22 @@ This implementation provides practical demonstration of:
 - **Strategic Supplier Evaluation**: Multi-criteria decision analysis integration in optimization
 - **Indicator Constraint Alternatives**: Linear equivalences for version compatibility
 - **Regime-Based Design**: Two fundamentally different approaches to volume tiering
-- **Cost Recomposition**: Dynamic cost calculation rather than static lookups
+- **Cost Lookups**: Precomputed per-option costs (base, RAC, tier) with static lookups in the objective
 - **Mixed-Constraint Optimization**: Combining discrete allocation with continuous volume splitting
 - **Business Logic Modeling**: Translating complex contractual requirements into mathematical constraints
 - **Surgical Model Refinement**: Targeted fixes preserving mathematical integrity while improving business accuracy
 - **Geographic Policy Constraints**: Flexible implementation of location-based allocation restrictions
 - **Trade-off Analysis**: Quantitative assessment of cost vs. strategic score relationships
 
-## Model Performance Metrics (Current Implementation)
+## Model Performance Metrics (Illustrative; dataset/config dependent)
 
-- **Variables** (Total: 10,452):
+- **Variables** (illustrative):
   - Allocation binaries: 10,335 (x_{i,j,o})
   - Tier binaries: 6 (z_{c,b} for min_volume > 0 only)  
   - RAC binaries: 1 (y_c)
   - All-units selection: ~5 (y_{c,b} selection variables)
   - Band volume splits: 105 (s_{i,j,o,b}) for incremental contracts
-- **Constraints** (Total: 4,734+ dynamic):
+- **Constraints** (illustrative, dynamic):
   - Assignment: 60 constraints (one per depot)
   - Capacity: 68 constraints (one per supplier depot with capacity limits)
   - Volume tier: ~3,300+ constraints (regime-dependent)

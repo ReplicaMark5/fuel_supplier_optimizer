@@ -36,3 +36,6 @@ optimization_map*.html
 
 # Ignore sample export files
 final_version/sample_export.json
+
+# AI Context Sync (internal tooling)
+.context-sync/
