@@ -1,2 +1,40 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+*.egg-info/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Outputs (entire directory - all generated files)
+outputs/
+
+# Data files (databases only, keep config tracked)
+data/databases/*.db
+data/databases/*.db-journal
+
+# Keep config tracked
+!data/config/*.json
+
+# Logs
+*.log
+.aider*
+
 # AI Context Sync (internal tooling)
 .context-sync/
+
+# Claude Code
+.claude/
+
+# Backup directories
+backup_before_restructure_*/

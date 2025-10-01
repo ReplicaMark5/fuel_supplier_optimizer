@@ -4,7 +4,7 @@ Interactive script to run precomputation and query depot costs.
 Usage: python query_costs.py
 """
 
-from precomputation import FuelOptimizationPrecomputation
+from src.precomputation import FuelOptimizationPrecomputation
 import json
 
 class CostQueryTool:

@@ -100,6 +100,9 @@ if [[ ! -f "$src" ]]; then
     echo "- \`npm test\` / \`pytest\`"
     echo "- \`npm run lint\` / \`ruff check .\`"
     echo "- \`npm run build\`"
+    echo "- 'tree -a -I \".git|__pycache__|*.pyc|archive|outputs|data/databases/*.db\" > project_tree.txt' # use this command to see project tree"
+    echo
+    echo "**ast-grep (sg):** Available for structural code search/refactor. Use for: API migrations, large-scale renames, logging standardization, security hardening, error-handling policy changes, test modernization, config normalization. Workflow: \`sg run -p 'pattern' --lang python src/\` (preview) → \`-i\` (interactive) → \`-U\` (batch). Always set \`--lang\`. Use \`sg scan --config sgconfig.yml\` for repeatable repo policies."
     echo
     echo "## Architecture Notes"
     echo "- <KEY_PATTERNS_OR_PRINCIPLES>"

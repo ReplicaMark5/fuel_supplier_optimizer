@@ -1,0 +1,141 @@
+.    # Project root
+|-- .claude                             # Claude agent configs (internal tooling)
+|   |-- agents
+|   |   |-- code-searcher.md
+|   |   |-- database-analyzer-2.md
+|   |   |-- database-analyzer.md
+|   |   |-- fuel-expert.md
+|   |   |-- fuel-logistics-expert.md
+|   |   |-- meta-agent-2.md
+|   |   `-- meta-agent.md
+|   `-- settings.local.json
+|-- .context-sync                       # AI context sync scripts and backups
+|   |-- .backups
+|   |   |-- 20250928T093747
+|   |   |   `-- CLAUDE.md
+|   |   |-- 20250928T093848
+|   |   |   `-- CLAUDE.md
+|   |   `-- manual_backup
+|   |       |-- CLAUDE_2.md
+|   |       |-- CLAUDE_3.md
+|   |       `-- CLAUDE_old.md
+|   |-- manual_sync_context.sh
+|   `-- watch_context.sh
+|-- .gitignore                          # Git ignore rules for repository
+|-- AGENTS.md                           # Agent guidelines for working in this repo
+|-- CLAUDE.md                           # Generated sync target (read-only)
+|-- CONTEXT.md                          # Primary project context (edit to sync targets)
+|-- GEMINI.md                           # Generated sync target (read-only)
+|-- data                                # Data assets
+|   |-- config                          # Tracked configuration (JSON)
+|   |   `-- optimization_config.json    # Optimization settings (tiers, PV, capacities, weights)
+|   `-- databases                       # SQLite databases (ignored in VCS)
+|       |-- fuel_data.db
+|       `-- fuel_data_backup.db
+|-- docs                                # Documentation and thesis assets
+|   |-- chapters_copy                   # Thesis figures and asset snapshots
+|   |   |-- Results_Section_Gameplan.md
+|   |   |-- optimization_allocation_map.png
+|   |   |-- optimization_config_sanitized.json
+|   |   `-- pareto_front_fuel_optimization.png
+|   |-- input_specs                     # Input specification docs
+|   |   `-- input_specs
+|   |       |-- constraint_specs.md
+|   |       |-- manual_crosscheck_calc.md
+|   |       `-- volume_tier_specs.md
+|   |-- output_specs                    # Output specification and data-prep docs
+|   |   |-- data_prep_docs
+|   |   `-- output_specs
+|   |       |-- cost_formulas.md
+|   |       |-- data_prep_docs
+|   |       |   |-- depot_allocation_documentation.md
+|   |       |   |-- road_distance_calculator_documentation.md
+|   |       |   `-- zone_extract_documentation.md
+|   |       |-- database_schema_documentation.md
+|   |       |-- mathematical_optimization_formulation.md
+|   |       `-- optimization_config_documentation.md
+|   |-- personal_notes                  # Personal working notes
+|   |   `-- personal_notes
+|   |       |-- Optimizer.md
+|   |       |-- Optimizer_Visualer.md
+|   |       |-- Optimizer_plan.txt
+|   |       |-- TODO.md
+|   |       |-- commands.txt
+|   |       |-- optimization_config_2.json
+|   |       |-- precomputation_pandas_early_design.txt
+|   |       |-- thesis_notes.md
+|   |       `-- vol_tier_logic.txt
+|   `-- verification_research           # Verification/validation/sensitivity notes
+|       |-- gemini_ver_val.md
+|       |-- sensitivity_analysis.md
+|       |-- validation.md
+|       |-- ver_val_sen.md
+|       `-- verification.md
+|-- fix_test_and_dataprep_paths.py      # Post-migration path fix script
+|-- migration_report.json               # Migration actions report
+|-- optimization_allocation_map.html    # Generated visualization (legacy location)
+|-- project_tree.txt                    # Raw tree listing
+|-- project_tree_annotated.txt          # Curated annotated tree (appendix)
+|-- restructure_migration.py            # Migration script to reorganize project
+|-- scripts                             # Executable scripts and CLIs
+|   |-- __init__.py
+|   |-- data_preparation                # Data ingestion and table creation
+|   |   |-- __init__.py
+|   |   |-- create_supplier_tables.py   # Create/import strategic scoring tables
+|   |   `-- extractors                  # Extract utilities (PDF/Excel to SQLite)
+|   |       |-- __init__.py
+|   |       |-- diesel_price_extractor.py             # Parse diesel price PDF into diesel_prices table
+|   |       `-- excel_to_sqlite.py                    # Convert Excel workbook to SQLite tables
+|   `-- export                          # Reporting and export utilities
+|       |-- __init__.py
+|       |-- export_baseline_summaries.py # Baseline utilization/capacity tables for thesis
+|       `-- export_costs.py             # Export complete precomputed cost dictionary
+|-- setup_context_sync.sh               # Context syncing helper script
+|-- src                                 # Core library (importable modules)
+|   |-- __init__.py
+|   |-- fuel_optimizer_docplex.py       # DOcplex optimization engine (tiers, capacities, multi-objective)
+|   |-- pareto_front_generator.py       # ε-constraint Pareto front controller
+|   |-- precomputation.py               # Data loading + PV costs + tiering + strategic scoring
+|   |-- strategic_supplier_scoring.py   # Strategic supplier weighted scoring (DB-driven)
+|   `-- visualization                   # Visualization helpers
+|       |-- __init__.py
+|       `-- optimization_map.py         # Folium map visualization of allocations and routes
+|-- tests                               # Tests and verification suites
+|   |-- __init__.py
+|   |-- debug                           # Debug/diagnostic scripts (informal)
+|   |   |-- __init__.py
+|   |   |-- debug_costs.py
+|   |   |-- debug_validation_stats.py
+|   |   `-- transport_cost_comparison.py
+|   |-- unit                            # Unit tests (transport costs, tiers, objectives)
+|   |   |-- __init__.py
+|   |   |-- test_coc_equipment_costs.py
+|   |   |-- test_del_simplification.py
+|   |   |-- test_indicators_refactor.py
+|   |   |-- test_multi_objective.py
+|   |   |-- test_tier_columns.py
+|   |   |-- test_transport_costs.py
+|   |   `-- test_volume_tiers.py
+|   `-- verification                    # Formal verification scenarios and results
+|       |-- __init__.py
+|       |-- optimizer_verification_suite.py # Automated verification runner
+|       |-- test_data_generator.py      # Scenario/data generator for verification
+|       |-- test_scenarios              # Scenario fixtures (JSON/DB)
+|       |   |-- scenario_1_basic_assignment.db
+|       |   |-- scenario_1_basic_assignment_config.json
+|       |   |-- scenario_2_capacity_constraint_config.json
+|       |   |-- scenario_3_infeasible_capacity_config.json
+|       |   |-- scenario_4_all_units_tier_config.json
+|       |   |-- scenario_5_below_threshold_config.json
+|       |   |-- scenario_6_incremental_tiers_config.json
+|       |   |-- scenario_7_multi_objective_config.json
+|       |   `-- scenario_8_rac_contract_config.json
+|       `-- verification_results        # Outputs from verification runs
+|           `-- verification_report.json
+|-- tools                               # Utilities for manual analysis and querying
+|   |-- __init__.py
+|   |-- manual_cost_calculator.py       # Manual cost calculation helper (what-if)
+|   `-- query_costs.py                  # Interactive CLI to query precomputed costs
+`-- tree2.txt                           # This annotated tree (appendix asset)
+
+35 directories, 104 files

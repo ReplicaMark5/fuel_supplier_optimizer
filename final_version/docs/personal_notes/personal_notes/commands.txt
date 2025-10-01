@@ -1,0 +1,7 @@
+
+
+sqlite_web fuel_data.db --host 0.0.0.0 --port 8080
+
+htop
+
+tree --charset=ascii -a -I ".git|__pycache__|*.pyc|archive|outputs|backup_before_restructure_20250930_101233|data/databases/*.db" > tree2.txt

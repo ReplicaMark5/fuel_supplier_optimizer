@@ -1,0 +1,277 @@
+.
+├── .claude
+│   ├── agents
+│   │   ├── code-searcher.md
+│   │   ├── database-analyzer-2.md
+│   │   ├── database-analyzer.md
+│   │   ├── fuel-expert.md
+│   │   ├── fuel-logistics-expert.md
+│   │   ├── meta-agent-2.md
+│   │   └── meta-agent.md
+│   └── settings.local.json
+├── .context-sync
+│   ├── .backups
+│   │   ├── 20250928T093747
+│   │   │   └── CLAUDE.md
+│   │   ├── 20250928T093848
+│   │   │   └── CLAUDE.md
+│   │   └── manual_backup
+│   │       ├── CLAUDE_2.md
+│   │       ├── CLAUDE_3.md
+│   │       └── CLAUDE_old.md
+│   ├── manual_sync_context.sh
+│   └── watch_context.sh
+├── .gitignore
+├── AGENTS.md
+├── CLAUDE.md
+├── CONTEXT.md
+├── GEMINI.md
+├── backup_before_restructure_20250930_101233
+│   ├── .gitignore
+│   ├── AGENTS.md
+│   ├── CLAUDE.md
+│   ├── CONTEXT.md
+│   ├── GEMINI.md
+│   ├── chapters_copy
+│   │   ├── Advanced_Model.tex
+│   │   ├── Results_Section_Gameplan.md
+│   │   ├── Results_and_Discussion.tex
+│   │   ├── appendixB.tex
+│   │   ├── appendix_config_schema.tex
+│   │   ├── capacity_summary_baseline.csv
+│   │   ├── capacity_summary_rows.tex
+│   │   ├── optimization_allocation_map.png
+│   │   ├── optimization_config_sanitized.json
+│   │   ├── pareto_front_fuel_optimization.png
+│   │   ├── results_insert_stubs.tex
+│   │   ├── supplier_utilization_baseline.csv
+│   │   └── supplier_utilization_rows.tex
+│   ├── complete_export.json
+│   ├── complete_export.xlsx
+│   ├── complete_export_flattened.csv
+│   ├── create_supplier_tables.py
+│   ├── delete
+│   │   ├── Claude_Bus_logic_20_Aug.txt
+│   │   ├── Precomputations.md
+│   │   ├── cust_dep_1_sup_dep_4.txt
+│   │   ├── fuel_data_backup_before_migration.db
+│   │   ├── fuel_data_before_sup_lat_long.db
+│   │   ├── fuel_data_before_supply_depot.db
+│   │   ├── fuel_optimizer.py
+│   │   ├── manual_crosscheck_calc_before removing buy equipment.md
+│   │   ├── manual_crosscheck_calc_old.md
+│   │   ├── memory_log.md
+│   │   ├── migrate_supplier_depot_fk.sql
+│   │   ├── old_concept_of_vol_tier_logic.txt
+│   │   ├── precomputation_broken_backup.py
+│   │   ├── precomputation_clean.py
+│   │   ├── temp_tier_cost_method.py
+│   │   ├── volume_tier_chat.txt
+│   │   └── volume_tier_specs_old.txt
+│   ├── export_baseline_summaries.py
+│   ├── export_costs.py
+│   ├── extractors
+│   │   ├── diesel_price_extractor.py
+│   │   └── excel_to_sqlite.py
+│   ├── final_version
+│   │   └── chapters_copy
+│   │       ├── capacity_summary_baseline.csv
+│   │       ├── capacity_summary_rows.tex
+│   │       ├── supplier_utilization_baseline.csv
+│   │       └── supplier_utilization_rows.tex
+│   ├── fuel_data.db
+│   ├── fuel_data_backup.db
+│   ├── fuel_optimizer_docplex.py
+│   ├── input_specs
+│   │   ├── constraint_specs.md
+│   │   ├── manual_crosscheck_calc.md
+│   │   └── volume_tier_specs.md
+│   ├── optimization_allocation_map.html
+│   ├── optimization_config.json
+│   ├── optimization_map.py
+│   ├── output_specs
+│   │   ├── cost_formulas.md
+│   │   ├── data_prep_docs
+│   │   │   ├── depot_allocation_documentation.md
+│   │   │   ├── road_distance_calculator_documentation.md
+│   │   │   └── zone_extract_documentation.md
+│   │   ├── database_schema_documentation.md
+│   │   ├── mathematical_optimization_formulation.md
+│   │   └── optimization_config_documentation.md
+│   ├── pareto_front_fuel_optimization.png
+│   ├── pareto_front_generator.py
+│   ├── pareto_fuel_solutions.csv
+│   ├── pareto_fuel_solutions.json
+│   ├── personal_notes
+│   │   ├── Optimizer.md
+│   │   ├── Optimizer_Visualer.md
+│   │   ├── Optimizer_plan.txt
+│   │   ├── TODO.md
+│   │   ├── commands.txt
+│   │   ├── optimization_config_2.json
+│   │   ├── precomputation_pandas_early_design.txt
+│   │   ├── thesis_notes.md
+│   │   └── vol_tier_logic.txt
+│   ├── precomputation.py
+│   ├── restructure_migration.py
+│   ├── setup_context_sync.sh
+│   ├── strategic_supplier_scoring.py
+│   ├── test_debug
+│   │   ├── debug_costs.py
+│   │   ├── debug_validation_stats.py
+│   │   ├── test_coc_equipment_costs.py
+│   │   ├── test_del_simplification.py
+│   │   ├── test_indicators_refactor.py
+│   │   ├── test_multi_objective.py
+│   │   ├── test_tier_columns.py
+│   │   ├── test_transport_costs.py
+│   │   ├── test_volume_tiers.py
+│   │   └── transport_cost_comparison.py
+│   ├── test_scenarios
+│   │   ├── scenario_1_basic_assignment.db
+│   │   ├── scenario_1_basic_assignment_config.json
+│   │   ├── scenario_2_capacity_constraint_config.json
+│   │   ├── scenario_3_infeasible_capacity_config.json
+│   │   ├── scenario_4_all_units_tier_config.json
+│   │   ├── scenario_5_below_threshold_config.json
+│   │   ├── scenario_6_incremental_tiers_config.json
+│   │   ├── scenario_7_multi_objective_config.json
+│   │   └── scenario_8_rac_contract_config.json
+│   ├── tools
+│   │   ├── manual_cost_calculator.py
+│   │   └── query_costs.py
+│   ├── verification_results
+│   │   └── verification_report.json
+│   └── verification_validation_sensitivity
+│       ├── optimization_allocation_map.html
+│       ├── optimizer_verification_suite.py
+│       ├── research_notes
+│       │   ├── gemini_ver_val.md
+│       │   ├── sensitivity_analysis.md
+│       │   ├── validation.md
+│       │   ├── ver_val_sen.md
+│       │   └── verification.md
+│       ├── test_data_generator.py
+│       ├── test_scenarios
+│       │   ├── scenario_1_basic_assignment.db
+│       │   ├── scenario_1_basic_assignment_config.json
+│       │   ├── scenario_2_capacity_constraint_config.json
+│       │   ├── scenario_3_infeasible_capacity_config.json
+│       │   ├── scenario_4_all_units_tier_config.json
+│       │   ├── scenario_5_below_threshold_config.json
+│       │   ├── scenario_6_incremental_tiers_config.json
+│       │   ├── scenario_7_multi_objective_config.json
+│       │   └── scenario_8_rac_contract_config.json
+│       └── verification_results
+│           └── verification_report.json
+├── data
+│   ├── config
+│   │   └── optimization_config.json
+│   └── databases
+│       ├── fuel_data.db
+│       └── fuel_data_backup.db
+├── docs
+│   ├── chapters_copy
+│   │   ├── Results_Section_Gameplan.md
+│   │   ├── optimization_allocation_map.png
+│   │   ├── optimization_config_sanitized.json
+│   │   └── pareto_front_fuel_optimization.png
+│   ├── input_specs
+│   │   └── input_specs
+│   │       ├── constraint_specs.md
+│   │       ├── manual_crosscheck_calc.md
+│   │       └── volume_tier_specs.md
+│   ├── output_specs
+│   │   ├── data_prep_docs
+│   │   └── output_specs
+│   │       ├── cost_formulas.md
+│   │       ├── data_prep_docs
+│   │       │   ├── depot_allocation_documentation.md
+│   │       │   ├── road_distance_calculator_documentation.md
+│   │       │   └── zone_extract_documentation.md
+│   │       ├── database_schema_documentation.md
+│   │       ├── mathematical_optimization_formulation.md
+│   │       └── optimization_config_documentation.md
+│   ├── personal_notes
+│   │   └── personal_notes
+│   │       ├── Optimizer.md
+│   │       ├── Optimizer_Visualer.md
+│   │       ├── Optimizer_plan.txt
+│   │       ├── TODO.md
+│   │       ├── commands.txt
+│   │       ├── optimization_config_2.json
+│   │       ├── precomputation_pandas_early_design.txt
+│   │       ├── thesis_notes.md
+│   │       └── vol_tier_logic.txt
+│   └── verification_research
+│       ├── gemini_ver_val.md
+│       ├── sensitivity_analysis.md
+│       ├── validation.md
+│       ├── ver_val_sen.md
+│       └── verification.md
+├── fix_test_and_dataprep_paths.py
+├── migration_report.json
+├── optimization_allocation_map.html
+├── project_tree.txt
+├── restructure_migration.py
+├── scripts
+│   ├── __init__.py
+│   ├── data_preparation
+│   │   ├── __init__.py
+│   │   ├── create_supplier_tables.py
+│   │   └── extractors
+│   │       ├── __init__.py
+│   │       ├── diesel_price_extractor.py
+│   │       └── excel_to_sqlite.py
+│   └── export
+│       ├── __init__.py
+│       ├── export_baseline_summaries.py
+│       └── export_costs.py
+├── setup_context_sync.sh
+├── src
+│   ├── __init__.py
+│   ├── fuel_optimizer_docplex.py
+│   ├── pareto_front_generator.py
+│   ├── precomputation.py
+│   ├── strategic_supplier_scoring.py
+│   └── visualization
+│       ├── __init__.py
+│       └── optimization_map.py
+├── tests
+│   ├── __init__.py
+│   ├── debug
+│   │   ├── __init__.py
+│   │   ├── debug_costs.py
+│   │   ├── debug_validation_stats.py
+│   │   └── transport_cost_comparison.py
+│   ├── unit
+│   │   ├── __init__.py
+│   │   ├── test_coc_equipment_costs.py
+│   │   ├── test_del_simplification.py
+│   │   ├── test_indicators_refactor.py
+│   │   ├── test_multi_objective.py
+│   │   ├── test_tier_columns.py
+│   │   ├── test_transport_costs.py
+│   │   └── test_volume_tiers.py
+│   └── verification
+│       ├── __init__.py
+│       ├── optimizer_verification_suite.py
+│       ├── test_data_generator.py
+│       ├── test_scenarios
+│       │   ├── scenario_1_basic_assignment.db
+│       │   ├── scenario_1_basic_assignment_config.json
+│       │   ├── scenario_2_capacity_constraint_config.json
+│       │   ├── scenario_3_infeasible_capacity_config.json
+│       │   ├── scenario_4_all_units_tier_config.json
+│       │   ├── scenario_5_below_threshold_config.json
+│       │   ├── scenario_6_incremental_tiers_config.json
+│       │   ├── scenario_7_multi_objective_config.json
+│       │   └── scenario_8_rac_contract_config.json
+│       └── verification_results
+│           └── verification_report.json
+└── tools
+    ├── __init__.py
+    ├── manual_cost_calculator.py
+    └── query_costs.py
+
+53 directories, 222 files
